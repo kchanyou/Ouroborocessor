@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Ouroborocessor",
+  "version": "0.1.0-beta.1",
+  "identifier": "com.ouroboro.ouroborocessor",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Ouroborocessor",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 720,
+        "minHeight": 540,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: asset: https://asset.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "copyright": "Copyright © 2026 Kim Chanyoung. All rights reserved.",
+    "category": "Productivity",
+    "shortDescription": "Accessible local-first writing app",
+    "longDescription": "A calm, accessible writing environment for long-form projects whose files remain on your device.",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../docs/FREEWARE_LICENSE.md": "FREEWARE_LICENSE.md",
+      "../docs/PRIVACY.md": "PRIVACY.md"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}
