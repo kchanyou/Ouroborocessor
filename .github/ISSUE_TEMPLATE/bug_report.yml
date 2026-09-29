@@ -1,0 +1,64 @@
+name: 버그 제보
+description: 재현 가능한 오류나 데이터 문제 제보
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제보 전 최신 베타에서도 문제가 반복되는지 확인해 주세요.
+        공개 이슈에는 실제 원고, 개인 정보, 민감한 파일 경로를 첨부하지 마세요. 보안 문제는 qurioturio@gmail.com으로 보내 주세요.
+
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전
+      placeholder: 0.1.0-beta.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 운영체제
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - iPadOS
+        - iOS
+        - Android
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 문제를 재현할 수 있는 가장 짧은 순서를 적어 주세요.
+      placeholder: |
+        1. 프로젝트를 연다
+        2. 문서를 이동한다
+        3. 오류가 나타난다
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 예상한 결과
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 추가 정보
+      description: 재현용 프로젝트나 개인 정보가 가려진 화면만 첨부해 주세요.
