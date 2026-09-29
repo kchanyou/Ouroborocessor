@@ -1,0 +1,41 @@
+{
+  "name": "ouroborocessor",
+  "private": true,
+  "description": "Accessible, local-first long-form writing application",
+  "author": "Kim Chanyoung <qurioturio@gmail.com>",
+  "license": "SEE LICENSE IN LICENSE",
+  "version": "0.1.0-beta.1",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "check": "npm run check:docs && npm test && npm run build && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo test --manifest-path src-tauri/Cargo.toml",
+    "check:docs": "node scripts/check-doc-links.mjs",
+    "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "release:security": "npm audit --omit=dev --audit-level=high && cargo audit --file src-tauri/Cargo.lock",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
+  }
+}
