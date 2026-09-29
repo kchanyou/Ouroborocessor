@@ -1,0 +1,46 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Locale } from "./i18n";
+
+export type PaletteItem = { id: string; title: string; detail?: string; shortcut?: string; run: () => void };
+
+const text = {
+  ko: { commands: "명령 실행", files: "문서 열기", commandPlaceholder: "명령 검색", filePlaceholder: "문서 이름 검색", empty: "일치하는 항목이 없어요." },
+  en: { commands: "Run command", files: "Open document", commandPlaceholder: "Search commands", filePlaceholder: "Search documents", empty: "No matching items." },
+  es: { commands: "Ejecutar comando", files: "Abrir documento", commandPlaceholder: "Buscar comandos", filePlaceholder: "Buscar documentos", empty: "No hay resultados." },
+  ja: { commands: "コマンドを実行", files: "原稿を開く", commandPlaceholder: "コマンドを検索", filePlaceholder: "原稿名を検索", empty: "一致する項目はありません。" },
+  zh: { commands: "运行命令", files: "打开文稿", commandPlaceholder: "搜索命令", filePlaceholder: "搜索文稿", empty: "没有匹配项。" },
+};
+
+export function CommandPalette({ mode, locale, items, onClose }: { mode: "commands" | "files"; locale: Locale; items: PaletteItem[]; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const input = useRef<HTMLInputElement>(null);
+  const t = text[locale];
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase(locale);
+    return needle ? items.filter(item => `${item.title} ${item.detail ?? ""}`.toLocaleLowerCase(locale).includes(needle)) : items;
+  }, [items, locale, query]);
+  useEffect(() => { input.current?.focus(); }, []);
+  useEffect(() => { setActive(0); }, [query]);
+  const run = (item: PaletteItem | undefined) => { if (!item) return; onClose(); item.run(); };
+  return <div className="command-palette-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="command-palette" role="dialog" aria-modal="true" aria-label={mode === "commands" ? t.commands : t.files}>
+      <input ref={input} value={query} placeholder={mode === "commands" ? t.commandPlaceholder : t.filePlaceholder}
+        onChange={event => setQuery(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === "Escape") { event.preventDefault(); onClose(); }
+          if (event.key === "ArrowDown") { event.preventDefault(); setActive(value => Math.min(filtered.length - 1, value + 1)); }
+          if (event.key === "ArrowUp") { event.preventDefault(); setActive(value => Math.max(0, value - 1)); }
+          if (event.key === "Enter") { event.preventDefault(); run(filtered[active]); }
+        }} />
+      <div className="command-list" role="listbox">
+        {filtered.map((item, index) => <button type="button" role="option" aria-selected={index === active} key={item.id}
+          onMouseEnter={() => setActive(index)} onClick={() => run(item)}>
+          <span><strong>{item.title}</strong>{item.detail && <small>{item.detail}</small>}</span>
+          {item.shortcut && <kbd>{item.shortcut}</kbd>}
+        </button>)}
+        {!filtered.length && <p className="command-empty">{t.empty}</p>}
+      </div>
+    </section>
+  </div>;
+}

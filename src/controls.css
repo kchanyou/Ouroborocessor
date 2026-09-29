@@ -1,0 +1,315 @@
+/* Shared form controls. Plain <button>s, selects and inputs get one native-feeling look
+   so panels and dialogs don't fall back to browser defaults. List-style buttons keep
+   their own rules because :where() gives this base zero specificity. */
+
+:where(button:not([class])),
+.secondary-setting-button,
+.find-actions button,
+.image-inspector-actions button,
+.error-banner button,
+.resource-actions button,
+.overview-controls > button,
+.resource-links button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 12px;
+  color: var(--ink);
+  background: var(--control);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 4%);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+:where(button:not([class])):hover:not(:disabled),
+.secondary-setting-button:hover:not(:disabled),
+.find-actions button:hover:not(:disabled),
+.image-inspector-actions button:hover:not(:disabled),
+.error-banner button:hover:not(:disabled),
+.resource-actions button:hover:not(:disabled),
+.overview-controls > button:hover:not(:disabled),
+.resource-links button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 5%, var(--control));
+}
+
+:where(button:not([class])):active:not(:disabled),
+.secondary-setting-button:active:not(:disabled),
+.find-actions button:active:not(:disabled),
+.resource-actions button:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 10%, var(--control));
+  box-shadow: none;
+}
+
+:where(button:not([class]))[aria-pressed="true"],
+.resource-actions button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* The global `button { font: inherit }` reset outranks :where(), so restate the text metrics here. */
+button:not([class]) {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.primary {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Dialog footers: secondary action first, primary last, aligned to the end like macOS sheets. */
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 0.5rem;
+}
+
+/* Segmented control, e.g. Search / Replace all / Batch history. */
+.segmented {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  border-radius: calc(var(--radius-sm) + 2px);
+}
+
+.segmented button {
+  min-height: 28px;
+  padding: 4px 12px;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.segmented button:hover:not(:disabled) { color: var(--ink); }
+
+.segmented button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--editor);
+  outline: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%), 0 0 0 0.5px rgb(0 0 0 / 6%);
+}
+
+/* Focus rings drawn with box-shadow follow the control's corner radius in every WebKit version. */
+:is(button, select, input, textarea, summary):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--editor), 0 0 0 4px var(--focus);
+}
+
+/* Selects: drop the platform widget and draw the chevron from theme colors.
+   The :is() list outranks older per-panel select rules that reset the background. */
+select,
+:is(.settings-dialog, .inspector-field, .export-dialog, .new-project-dialog, .resource-panel, .batch-history) select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 30px;
+  padding: 4px 30px 4px 10px;
+  color: var(--ink);
+  background-color: var(--control);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-secondary) 50%),
+    linear-gradient(135deg, var(--ink-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 1px rgb(0 0 0 / 4%);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+select:hover:not(:disabled), :is(.settings-dialog, .inspector-field, .export-dialog, .new-project-dialog, .resource-panel, .batch-history) select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ink) 35%, transparent); }
+
+:where(.new-project-dialog, .settings-dialog, .resource-panel, .find-panel, .inspector, .reference-panel) :is(input[type="text"], input[type="search"], input:not([type]), input[type="number"], textarea) {
+  min-height: 30px;
+  padding: 5px 10px;
+  color: var(--ink);
+  background: var(--control);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 4%);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+/* Checkboxes: a small rounded square with a drawn check. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  place-content: center;
+  background: var(--control);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+input[type="checkbox"]::before {
+  width: 10px;
+  height: 10px;
+  content: "";
+  background: var(--accent-contrast);
+  clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 22%, 84% 6%, 40% 66%);
+  transform: scale(0);
+  transition: transform 120ms ease;
+}
+
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:checked::before { transform: scale(1); }
+
+/* Settings toggles read as switches. */
+.switch-row input[type="checkbox"] {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 20px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  border: 0;
+  border-radius: 999px;
+}
+
+.switch-row input[type="checkbox"]::before {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 28%);
+  clip-path: none;
+  transform: none;
+  transition: transform 160ms ease;
+}
+
+.switch-row input[type="checkbox"]:checked { background: var(--accent); }
+.switch-row input[type="checkbox"]:checked::before { transform: translateX(14px); }
+
+/* Sliders: thin track, raised round thumb. */
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  accent-color: var(--accent);
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  border-radius: 999px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  background: #fff;
+  border: 0.5px solid rgb(0 0 0 / 14%);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+}
+
+input[type="range"]::-moz-range-track { height: 4px; background: color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 999px; }
+input[type="range"]::-moz-range-progress { height: 4px; background: var(--accent); border-radius: 999px; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: #fff; border: 0.5px solid rgb(0 0 0 / 14%); border-radius: 50%; box-shadow: 0 1px 3px rgb(0 0 0 / 25%); }
+input[type="range"]:focus-visible { box-shadow: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--editor), 0 0 0 4px var(--focus); }
+
+/* Editor appearance: theme swatches and live font samples. */
+.editor-appearance .choice-group { min-width: 0; margin: 0; padding: 0.35rem 0; border: 0; }
+.editor-appearance legend { padding: 0; margin-bottom: 0.5rem; font-size: 0.8rem; }
+.theme-swatches { display: flex; flex-wrap: wrap; gap: 10px 8px; }
+.theme-swatch, .font-card { position: relative; display: grid; justify-items: center; gap: 5px; cursor: pointer; }
+.theme-swatch input, .font-card input { position: absolute; opacity: 0; pointer-events: none; }
+.swatch {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  color: var(--ink);
+  background: var(--editor);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--editor-font, serif);
+  font-size: 0.95rem;
+  transition: box-shadow 120ms ease;
+}
+.swatch-auto { background: linear-gradient(135deg, #fcfbf7 50%, #252a26 50%); color: transparent; }
+.swatch-custom:empty::after { content: ""; }
+.choice-label { color: var(--ink-secondary); font-size: 0.72rem; }
+.theme-swatch input:checked + .swatch, .font-card input:checked + .font-sample { box-shadow: 0 0 0 2px var(--editor), 0 0 0 4px var(--accent); }
+.theme-swatch input:checked ~ .choice-label, .font-card input:checked ~ .choice-label { color: var(--ink); font-weight: 600; }
+.theme-swatch input:focus-visible + .swatch, .font-card input:focus-visible + .font-sample { box-shadow: 0 0 0 2px var(--editor), 0 0 0 4px var(--focus); }
+.font-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.font-card { justify-items: stretch; text-align: center; }
+.font-sample {
+  display: grid;
+  min-height: 48px;
+  place-items: center;
+  padding: 6px;
+  color: var(--ink);
+  background: var(--control);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  font-size: 1.05rem;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: box-shadow 120ms ease;
+}
+.custom-colors { display: flex; gap: 16px; padding: 0.35rem 0; }
+.color-field { display: inline-flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer; }
+.color-field input[type="color"] { width: 26px; height: 26px; padding: 0; background: none; border: 1px solid var(--line-strong); border-radius: 50%; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.color-field input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.color-field input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.color-field input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+.custom-font-field { display: grid; gap: 6px; padding: 0.5rem 0 0.25rem; }
+.custom-font-field small { color: var(--ink-secondary); font-size: 0.72rem; line-height: 1.45; }
+
+/* The writing area picks up the chosen font and theme colors. */
+.editor-workspace .manuscript-editor { font-family: var(--editor-font); }
+.editor-workspace[data-editor-theme]:not([data-editor-theme="auto"]) .editor-region { color: var(--ink); background: var(--editor); }
+
+@media (pointer: coarse) {
+  :where(button:not([class])), .primary, .secondary-setting-button, .find-actions button, .resource-actions button, select { min-height: 44px; }
+  .segmented button { min-height: 40px; }
+}
