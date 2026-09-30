@@ -119,18 +119,17 @@ function App() {
   const [showInspector, setShowInspector] = useState(layout.inspector);
   const [focusMode, setFocusMode] = useState(false);
   useEffect(() => {
-    if (!focusMode) { try { localStorage.setItem(layoutKey, JSON.stringify({ ...layout, navigator: showNavigator, inspector: showInspector })); } catch { /* Layout preferences must not block writing. */ } }
+    if (!focusMode) { try { localStorage.setItem(layoutKey, JSON.stringify({ ...layout, navigator: showNavigator, inspector: showInspector })); } catch { /* ignore */ } }
   }, [layout, showNavigator, showInspector, focusMode]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  // Reference tab data, shared by both panes; each pane keeps its own ordered list of keys.
+  // shared by both panes, each pane has its own key order
   const [referenceTabs, setReferenceTabs] = useState<Array<ReferenceTab & { card: ResourceCard | null }>>([]);
   const [mainReferenceKeys, setMainReferenceKeys] = useState<string[]>([]);
   const [activeReferenceKey, setActiveReferenceKey] = useState<string | null>(null);
-  // Tabs in the side pane, keyed like main tabs ("node:<id>" or a reference key). Like VS Code editor
-  // groups, the same document may be open in both panes; both editors share one in-memory copy.
+  // same keys as main tabs. a doc can be open in both panes (one in-memory copy)
   const [sideTabs, setSideTabs] = useState<string[]>([]);
   const [sideActiveKey, setSideActiveKey] = useState<string | null>(null);
   const [tabDrag, setTabDrag] = useState<TabDragState | null>(null);
@@ -201,7 +200,7 @@ function App() {
   const sideActive = sideActiveKey && sideKeys.includes(sideActiveKey) ? sideActiveKey : sideKeys.at(-1) ?? null;
   const sideActiveReference = sideReferences.find((tab) => tab.key === sideActive) ?? null;
   const sideActiveNode = sideNodes.find((node) => `node:${node.id}` === sideActive) ?? null;
-  // A scene shown in the side pane is editable there, even when the main pane shows the same scene.
+  // side pane scene is editable even if main shows the same one
   const sideEditScene = sideActiveNode?.kind === "scene" ? sideActiveNode : null;
   const tabT = tabText[locale];
   const sceneNodes = useMemo(
@@ -309,11 +308,11 @@ function App() {
     }
     void restore();
     return () => { cancelled = true; };
-  }, [acceptProjectWithRecovery]); // Restore once; changing interface language must not reopen the manuscript.
+  }, [acceptProjectWithRecovery]); // once only, language change shouldn't reopen
 
   const persistSelected = useCallback(async () => {
     if (!project) return;
-    // The side pane may hold a second editable scene; save it with the main one when it has changes.
+    // save side pane scene too if dirty
     const sideBase = sideEditScene ? diskContents.current.get(JSON.stringify([project.projectPath, sideEditScene.id])) : undefined;
     const sideChanged = sideEditScene && sideEditScene.id !== selectedScene?.id && sideBase !== undefined && sideBase !== sideEditScene.content;
     const scenes = [selectedScene, sideChanged ? sideEditScene : null].filter((scene): scene is ManuscriptNode => Boolean(scene));
@@ -328,7 +327,7 @@ function App() {
             diskContents.current.get(key) ?? scene.content);
         } catch (reason) {
           setSaveState("error");
-          // The conflict-copy action works on the main editor's scene only.
+          // conflict copy is main editor only
           if (String(reason).includes("SAVE_CONFLICT") && scene.id === selectedScene?.id) setConflict(true);
           throw reason;
         }
@@ -350,7 +349,7 @@ function App() {
 
   const persistForExport = async () => {
     if (!project) return;
-    // Metadata saves also use the body queue; wait outside it to avoid deadlock.
+    // metadata saves share the body queue, wait outside or it deadlocks
     await metadataQueue.current;
     const revision = editRevision.current;
     setSaveState("saving");
@@ -372,8 +371,7 @@ function App() {
       setSaveState(revision === editRevision.current ? "saved" : "dirty");
     } catch (reason) {
       setSaveState("error");
-      // Export errors identify their own scene in the dialog. Do not enable the
-      // selected-scene conflict-copy action for a different failing scene.
+      // error can be about another scene, don't offer conflict copy here
       throw reason;
     }
   };
@@ -422,7 +420,7 @@ function App() {
     setReferenceTabs((current) => current.some((tab) => tab.key === key)
       ? current.map((tab) => tab.key === key ? { key, title, card } : tab)
       : [...current, { key, title, card }]);
-    // Research opens beside the manuscript so both stay visible; narrow windows keep a single pane.
+    // open on the side (single pane if narrow)
     const pane: PaneId = target ?? (sideTabs.includes(key) ? "side" : mainReferenceKeys.includes(key) || isCompactViewport() ? "main" : "side");
     if (pane === "side") {
       setSideTabs((current) => current.includes(key) ? current : [...current, key]);
@@ -451,7 +449,6 @@ function App() {
     activateTab(tabOrder[(current + direction + tabOrder.length) % tabOrder.length]);
   }
 
-  /** Picks what the main pane shows once `key` leaves it. */
   function focusMainFallback(key: string) {
     if (activeTabKey !== key) return;
     const fallback = tabOrder.filter((item) => item !== key).at(-1) ?? null;
@@ -471,11 +468,7 @@ function App() {
     removeFromMain(key);
   }
 
-  /**
-   * Opens a tab in the side pane. By default the main pane keeps it too (VS Code's "split right");
-   * `move` takes it out of the main pane, except for the last tab, which is always split so the
-   * main pane never ends up empty.
-   */
+  // move=false keeps it in main too. last tab never gets moved out
   async function openToSide(key: string, move = false) {
     try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
     setSideTabs((current) => current.includes(key) ? current : [...current, key]);
@@ -483,14 +476,12 @@ function App() {
     if (move && tabOrder.length > 1) removeFromMain(key);
   }
 
-  /** Saves pending edits before the side pane shows something else. */
   async function switchSideTab(key: string | null, then?: () => void) {
     try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
     if (key) setSideActiveKey(key);
     then?.();
   }
 
-  /** Shows a side tab in the main pane; `move` also takes it out of the side pane. */
   function moveToMain(key: string, move = true) {
     if (move) setSideTabs((current) => current.filter((item) => item !== key));
     if (key.startsWith("node:")) {
@@ -506,7 +497,7 @@ function App() {
     void switchSideTab(null, () => setSideTabs((current) => current.filter((item) => item !== key)));
   }
 
-  // An empty main pane closes like an empty VS Code editor group: the side pane's tabs take its place.
+  // main empty -> side tabs move over
   useEffect(() => {
     if (!project || tabOrder.length || !sideKeys.length) return;
     const keys = sideKeys;
@@ -518,7 +509,7 @@ function App() {
     else setActiveReferenceKey(active);
   }, [project, tabOrder.length, sideKeys.join("|"), sideActive]);
 
-  // Drop reference data once no pane shows it.
+  // drop unused reference tabs
   useEffect(() => {
     setReferenceTabs((current) => {
       const next = current.filter((tab) => mainReferenceKeys.includes(tab.key) || sideTabs.includes(tab.key));
@@ -526,7 +517,7 @@ function App() {
     });
   }, [mainReferenceKeys, sideTabs]);
 
-  // Dragging moves a tab between panes; the split button copies instead.
+  // drag moves, split button copies
   tabDropActions.current = { toSide: (key) => { void openToSide(key, true); }, toMain: (key) => moveToMain(key, true) };
 
   function beginTabDrag(key: string, title: string, from: PaneId, event: ReactPointerEvent<HTMLButtonElement>) {
@@ -657,7 +648,7 @@ function App() {
     if (selectedScene) updateSceneContent(selectedScene.id, content);
   }
 
-  /** Records an edit to any scene: recovery drafts first, then the in-memory project. */
+  // recovery draft first, then project state
   function updateSceneContent(sceneId: string, content: string) {
     const scene = project?.nodes.find((node) => node.id === sceneId && node.kind === "scene");
     if (!scene || !project) return;
@@ -780,7 +771,7 @@ function App() {
       await persistSelected();
       const next = await undoProjectEdit(project.projectPath, redo);
       for (const node of next.nodes) metadataBaselines.current.set(JSON.stringify([next.projectPath, node.id]), { title: node.title, status: node.status, synopsis: node.synopsis });
-      // History changes only metadata and order. Never replace live draft text.
+      // history only touches metadata/order, never overwrite draft text
       setProject((current) => current?.projectPath === next.projectPath ? {
         ...next, nodes: next.nodes.map((node) => ({ ...node, content: current.nodes.find((old) => old.id === node.id)?.content ?? node.content })),
       } : current);
@@ -790,8 +781,7 @@ function App() {
   }
 
   function acceptStructure(next: ProjectSnapshot) {
-    // Structural responses contain disk bodies, not necessarily the recovered or
-    // newly typed bodies still in memory. Register only previously unseen scenes.
+    // response has disk text, not what's in memory. only add new scenes
     for (const node of next.nodes) {
       const key = JSON.stringify([next.projectPath, node.id]);
       if (node.kind === "scene" && !diskContents.current.has(key)) diskContents.current.set(key, node.content);
@@ -1047,8 +1037,7 @@ function App() {
     try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
     setActiveReferenceKey(null);
     setSelectedImage(null);
-    // The id may already be selected (hidden behind a reference or closed in this pane),
-    // in which case the tab-sync effect won't run, so add the tab here.
+    // may already be selected -> effect won't fire, add the tab here
     setDocumentTabs((current) => current.includes(node.id) ? current : [...current, node.id]);
     setSelectedNodeId(node.id);
     if (focusEditor && isCompactViewport()) setShowNavigator(false);
@@ -1062,8 +1051,7 @@ function App() {
     try {
       validateBatchSnapshot(liveProject.current?.nodes ?? [], changes);
       await metadataQueue.current;
-      // Flush recovered/unsaved text first so the preview's before-image is the
-      // exact disk baseline used by the native preflight and recovery journal.
+      // flush first so the preview matches what's on disk
       await persistForExport();
       if (liveProject.current?.projectPath !== path) throw new Error("SEARCH_STALE");
       validateBatchSnapshot(liveProject.current.nodes, changes);
@@ -1206,7 +1194,7 @@ function App() {
         }} />
 
       <div inert={historyBusy} className={`workspace ${showNavigator ? "with-nav" : ""} ${showInspector ? "with-inspector" : ""}`}>
-        {/* Only visible in the compact drawer layout; tapping outside closes the outline. */}
+        {/* compact layout only */}
         {showNavigator && <div className="navigator-backdrop" aria-hidden="true" onClick={toggleNavigator} />}
         {showNavigator && (
           <ManuscriptNavigator t={t} locale={locale} width={layout.navigatorWidth}

@@ -1,5 +1,4 @@
-/* A writing desk, with adjustable tools around a quiet page. */
-/* Corner scale: xs marks, sm controls, md cards and menus, lg dialogs. Nested corners step down one size. */
+/* radius: xs marks, sm controls, md cards/menus, lg dialogs */
 :root { --radius-xs: 4px; --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; }
 :root, html[data-theme="light"] {
   --canvas: #edece7; --chrome: rgb(247 246 242 / 88%); --sidebar: rgb(240 239 233 / 88%); --sidebar-solid: #f0efe9; --editor: #fcfbf7;
@@ -57,7 +56,7 @@ html[data-theme="dark"] {
 .resize-right { right: 0; } .resize-left { left: 0; }
 .panel-resize:hover, .panel-resize:focus-visible { background: var(--accent-soft); }
 @media (max-width: 780px) { .panel-resize { display: none; } }
-/* Toolbar density tiers: drop leading labels, then move trailing tools into the overflow menu by priority. */
+/* toolbar tiers: hide labels, then overflow by priority */
 .toolbar-more-content .overflow-sm, .toolbar-more-content .overflow-md, .toolbar-more-content .overflow-lg { display: none; }
 @media (min-width: 901px) { .topbar .toolbar-more { display: none; } }
 @media (max-width: 960px) {
@@ -169,10 +168,10 @@ html[data-theme="dark"] .image-inspector-actions .danger-action { color: #f0a09b
 html[data-transparency="reduce"] .settings-dialog,
 html[data-transparency="reduce"] .dialog-backdrop { background-color: var(--canvas); }
 
-/* Popups: one plain surface with quiet dividers, no nested cards. */
+/* popups */
 .dialog-backdrop, .new-project-dialog::backdrop, .command-palette-backdrop { background: rgb(0 0 0 / 24%); }
 .settings-dialog, .new-project-dialog { background: var(--editor); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--popup-shadow); }
-/* Header stays put; only the settings list scrolls when the window is short. */
+/* only the list scrolls */
 .settings-dialog { display: flex; flex-direction: column; }
 .settings-header { flex: none; }
 .settings-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
@@ -200,7 +199,7 @@ html[data-transparency="reduce"] .dialog-backdrop { background-color: var(--canv
 .command-palette { border-color: var(--line); border-radius: var(--radius-md); box-shadow: var(--popup-shadow); }
 .command-list button[aria-selected="true"] { background: var(--control-hover); }
 @media (max-width: 520px) { .settings-dialog { border-inline: 0; border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; } }
-/* Finishing touches: crisper type, calmer focus, and quick, quiet state changes. */
+/* misc */
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 h1, h2, h3 { text-wrap: balance; }
 :focus-visible { outline-width: 2px; }
@@ -216,7 +215,7 @@ h1, h2, h3 { text-wrap: balance; }
 .settings-dialog, .new-project-dialog[open], .command-palette, .toolbar-more[open] > .toolbar-more-content { animation: popup-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 @keyframes backdrop-in { from { opacity: 0; } }
 .dialog-backdrop, .command-palette-backdrop { animation: backdrop-in 140ms ease-out; }
-/* Split panes: the main editor plus an optional side pane for research or a read-only document. */
+/* split panes */
 .pane-row { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); }
 .pane-row.is-split { grid-template-columns: minmax(320px, 1fr) minmax(260px, min(var(--side-width), 50%)); }
 .workspace-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -234,7 +233,7 @@ h1, h2, h3 { text-wrap: balance; }
   .side-pane .panel-resize { display: none; }
 }
 
-/* Tab actions and drag feedback. */
+/* tab actions, drag */
 .document-tab .tab-move { display: grid; width: 24px; padding: 0; place-items: center; color: inherit; background: transparent; border: 0; opacity: 0; }
 .document-tab .tab-move .icon { width: 14px; height: 14px; }
 .document-tab:hover .tab-move, .document-tab[data-active="true"] .tab-move, .document-tab .tab-move:focus-visible { opacity: 0.75; }

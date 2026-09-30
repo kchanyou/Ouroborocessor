@@ -3,7 +3,7 @@ import type { ManuscriptNode } from "./types";
 
 export type ProjectMatch = { sceneId: string; title: string; start: number; end: number; source: string };
 export function editorMatchOffsets(hit: ProjectMatch) {
-  // Textarea DOM values normalize CRLF to LF; JS offsets otherwise remain UTF-16.
+  // textarea turns CRLF into LF, offsets are UTF-16
   return { start: hit.source.slice(0, hit.start).replace(/\r\n/g, "\n").length,
     end: hit.source.slice(0, hit.end).replace(/\r\n/g, "\n").length };
 }

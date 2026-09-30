@@ -33,7 +33,7 @@ it("keeps 500-scene search and overview preparation within the desktop CPU budge
   const countMedianMs = median(() => { characters = nodes.reduce((sum, node) => sum + getCharacterCount(node.content), 0); });
   expect(matches).toBe(3_000);
   expect(characters).toBeGreaterThan(100_000);
-  // A generous regression gate for shared CI. UI/IME latency remains a separate device test.
+  // loose on purpose for CI runners
   expect(searchMedianMs).toBeLessThan(500);
   expect(overviewMedianMs).toBeLessThan(500);
   expect(countMedianMs).toBeLessThan(500);

@@ -17,7 +17,7 @@ export function Topbar({ t, locale, isMac, busy, hasProject, title, saveState, s
 }) {
   const inspectorLabel = state.inspector ? t("hideInspector") : t("showInspector");
   const focusLabel = state.focus ? t("exitFocusMode") : t("focusMode");
-  // `collapse` names the width tier at which a tool leaves the toolbar for the overflow menu (see workspace.css).
+  // collapse: width tier where it goes into the overflow menu (workspace.css)
   const trailingTools = [
     { id: "focus", collapse: "md", icon: "focus", label: focusLabel, title: focusLabel, pressed: state.focus, run: actions.toggleFocus },
     { id: "inspector", collapse: "lg", icon: "inspector", label: inspectorLabel, title: inspectorLabel, pressed: state.inspector, run: actions.toggleInspector },

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { getCharacterCount, getTextMetrics } from "./textMetrics";
 
-// Uncached sidebar initialization; not a WebView input-latency measurement.
+// sidebar init without cache, not input latency
 const scenes = Array.from({ length: 100 }, (_, index) =>
   `${index}: 한국어 English español 日本語 中文 👨‍👩‍👧‍👦\n`.repeat(100));
 it("measures uncached counts for 100 multilingual scenes without a timing gate", () => {

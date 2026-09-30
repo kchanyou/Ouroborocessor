@@ -9,7 +9,6 @@ import { layoutText } from "./workspaceLayout";
 
 type TreeButtonEvent = PointerEvent<HTMLButtonElement>;
 
-/** Left panel: the manuscript tree with search, structure undo, drag and move controls. */
 export function ManuscriptNavigator({ t, locale, width, onResize, query, onQueryChange, itemCount, history, tree, selectedId, collapsedIds, tabStopId,
   draggingId, dropTarget, characterCount, drag, actions, moves }: {
   t: Translate; locale: Locale; width: number; onResize: (width: number) => void;

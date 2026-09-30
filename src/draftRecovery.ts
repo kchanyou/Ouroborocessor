@@ -21,7 +21,7 @@ export function writeDraft(project: string, scene: string, draft: RecoveryDraft)
 }
 
 export function clearSavedDraft(project: string, scene: string, saved: string) {
-  // An older save must never remove a more recent edit's recovery copy.
+  // older save must not delete a newer recovery copy
   const draft = readDraft(project, scene);
   if (draft?.content === saved) localStorage.removeItem(keyFor(project, scene));
   else if (draft) writeDraft(project, scene, { ...draft, base: saved });

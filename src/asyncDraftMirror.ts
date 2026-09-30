@@ -5,7 +5,7 @@ type PendingDraft = {
   operation: DraftOperation;
 };
 
-/** Serializes project-local recovery writes without delaying the editor. */
+// queue recovery writes without blocking the editor
 export class AsyncDraftMirror {
   private readonly pending = new Map<string, PendingDraft>();
   private queue: Promise<void> = Promise.resolve();

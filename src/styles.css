@@ -212,7 +212,7 @@ button:disabled {
   min-width: 0;
   align-items: center;
   padding: var(--safe-top) calc(0.65rem + var(--safe-right)) 0 calc(0.65rem + var(--safe-left));
-  /* Tool groups keep their natural width; the centered title yields space first. */
+  /* title shrinks first */
   grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   background: var(--chrome);
   border-bottom: 1px solid var(--line);
@@ -1425,7 +1425,7 @@ html[data-motion="reduce"] *::after {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
 }
-/* Recovery text stays readable without forcing a wide desktop-only layout. */
+/* recovery text on narrow windows */
 .batch-history { display: grid; gap: 12px; min-width: 0; }
 .batch-history label { display: grid; gap: 6px; min-width: 0; }
 .batch-history select { width: 100%; min-width: 0; }

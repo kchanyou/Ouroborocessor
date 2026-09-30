@@ -1,6 +1,4 @@
-/* Shared form controls. Plain <button>s, selects and inputs get one native-feeling look
-   so panels and dialogs don't fall back to browser defaults. List-style buttons keep
-   their own rules because :where() gives this base zero specificity. */
+/* base controls. :where() = zero specificity, list buttons keep their own rules */
 
 :where(button:not([class])),
 .secondary-setting-button,
@@ -53,7 +51,7 @@
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-/* The global `button { font: inherit }` reset outranks :where(), so restate the text metrics here. */
+/* button { font: inherit } beats :where() */
 button:not([class]) {
   font-size: 0.8125rem;
   font-weight: 500;
@@ -72,7 +70,7 @@ button:not([class]) {
   line-height: 1.2;
 }
 
-/* Dialog footers: secondary action first, primary last, aligned to the end like macOS sheets. */
+/* dialog footer: secondary then primary */
 .dialog-actions {
   display: flex;
   flex-wrap: wrap;
@@ -81,7 +79,7 @@ button:not([class]) {
   margin-top: 0.5rem;
 }
 
-/* Segmented control, e.g. Search / Replace all / Batch history. */
+/* segmented */
 .segmented {
   display: inline-flex;
   width: fit-content;
@@ -115,14 +113,13 @@ button:not([class]) {
   box-shadow: 0 1px 2px rgb(0 0 0 / 12%), 0 0 0 0.5px rgb(0 0 0 / 6%);
 }
 
-/* Focus rings drawn with box-shadow follow the control's corner radius in every WebKit version. */
+/* box-shadow ring so older WebKit follows the radius */
 :is(button, select, input, textarea, summary):focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--editor), 0 0 0 4px var(--focus);
 }
 
-/* Selects: drop the platform widget and draw the chevron from theme colors.
-   The :is() list outranks older per-panel select rules that reset the background. */
+/* selects. :is() to beat the old per-panel resets */
 select,
 :is(.settings-dialog, .inspector-field, .export-dialog, .new-project-dialog, .resource-panel, .batch-history) select {
   appearance: none;
@@ -159,7 +156,7 @@ select:hover:not(:disabled), :is(.settings-dialog, .inspector-field, .export-dia
   font-size: 0.8125rem;
 }
 
-/* Checkboxes: a small rounded square with a drawn check. */
+/* checkboxes */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -191,7 +188,7 @@ input[type="checkbox"]::before {
 input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
 input[type="checkbox"]:checked::before { transform: scale(1); }
 
-/* Settings toggles read as switches. */
+/* toggles */
 .switch-row input[type="checkbox"] {
   position: relative;
   display: block;
@@ -219,7 +216,7 @@ input[type="checkbox"]:checked::before { transform: scale(1); }
 .switch-row input[type="checkbox"]:checked { background: var(--accent); }
 .switch-row input[type="checkbox"]:checked::before { transform: translateX(14px); }
 
-/* Sliders: thin track, raised round thumb. */
+/* sliders */
 input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
@@ -255,7 +252,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: #
 input[type="range"]:focus-visible { box-shadow: none; }
 input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--editor), 0 0 0 4px var(--focus); }
 
-/* Editor appearance: theme swatches and live font samples. */
+/* theme swatches, font samples */
 .editor-appearance .choice-group { min-width: 0; margin: 0; padding: 0.35rem 0; border: 0; }
 .editor-appearance legend { padding: 0; margin-bottom: 0.5rem; font-size: 0.8rem; }
 .theme-swatches { display: flex; flex-wrap: wrap; gap: 10px 8px; }
@@ -305,7 +302,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px 
 .custom-font-field { display: grid; gap: 6px; padding: 0.5rem 0 0.25rem; }
 .custom-font-field small { color: var(--ink-secondary); font-size: 0.72rem; line-height: 1.45; }
 
-/* The writing area picks up the chosen font and theme colors. */
+/* editor font/colors */
 .editor-workspace .manuscript-editor { font-family: var(--editor-font); }
 .editor-workspace[data-editor-theme]:not([data-editor-theme="auto"]) .editor-region { color: var(--ink); background: var(--editor); }
 

@@ -21,10 +21,10 @@ export type WritingPreferences = {
   letterSpacing: number;
   editorWidth: number;
   fontFamily: FontPreference;
-  /** An installed font name, used when fontFamily is "custom". */
+  // when fontFamily is "custom"
   customFont: string;
   editorTheme: EditorTheme;
-  /** Page and text colors, used when editorTheme is "custom". */
+  // when editorTheme is "custom"
   customBackground: string;
   customText: string;
 };
@@ -51,7 +51,7 @@ export const defaultWritingPreferences: WritingPreferences = {
 
 const hexColor = /^#[0-9a-f]{6}$/i;
 
-/** Font names go into a CSS font-family string, so drop characters that could break out of the quotes. */
+// goes into font-family, strip anything that breaks the quotes
 export function sanitizeFontName(value: string) {
   return value.replace(/["'\\;{}<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
 }
@@ -98,6 +98,6 @@ export function savePreferences<T extends object>(key: string, preferences: T) {
   try {
     localStorage.setItem(key, JSON.stringify(preferences));
   } catch {
-    // The app remains usable if private browsing or a locked-down WebView blocks storage.
+    // storage can be blocked, just keep going
   }
 }

@@ -57,7 +57,7 @@ export function ResourcePanel({ projectPath, locale, nodes, onNavigate, onOpenCa
     try {
       const loaded = await saveResourceCard(projectPath, card, expected);
       window.dispatchEvent(new Event("resources-changed"));
-      // Never clear a newer draft created after closing and reopening the panel.
+      // don't wipe a newer draft (panel reopened)
       if (clearDraft && localStorage.getItem(key) === JSON.stringify(draft)) localStorage.removeItem(key);
       if (token === generation.current) { setCards(loaded); if (clearDraft) setDraft(null); setSelected(card.id); setStatus(true); }
     } catch (reason) { if (token === generation.current) setError(String(reason).includes("RESOURCE_CONFLICT") ? "conflict" : "save"); }

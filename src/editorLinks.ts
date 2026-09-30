@@ -42,7 +42,7 @@ export function snapLinkSelection(content: string, from: number, to: number) {
 export function editorChange(before: string, after: string) {
   let from = 0;
   while (from < before.length && from < after.length && before[from] === after[from]) from++;
-  // Do not divide a surrogate pair.
+  // don't split surrogate pairs
   if (from && /[\uD800-\uDBFF]/.test(before[from - 1])) from--;
   let to = before.length, end = after.length;
   while (to > from && end > from && before[to - 1] === after[end - 1]) { to--; end--; }

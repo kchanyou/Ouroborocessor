@@ -111,7 +111,7 @@ where
     let mut ids = HashSet::new();
     let mut files = HashSet::new();
     let mut paths = Vec::new();
-    // Preflight every target before writing even the first manuscript.
+    // check all targets before writing anything
     for change in &changes {
         if !ids.insert(&change.scene_id) {
             return Err("BATCH_DUPLICATE".into());
@@ -131,8 +131,7 @@ where
         }
         paths.push(path);
     }
-    // Keep a complete before/after journal before any manuscript write. It remains
-    // after success or interruption and is not governed by the 5-minute history interval.
+    // journal goes first. kept even after success, ignores the 5 min history interval
     let folder = journal_folder(project)?;
     fs::create_dir_all(&folder).map_err(storage_error)?;
     let journal = folder.join(format!("{}.json", timestamp_id("batch")?));
@@ -148,7 +147,7 @@ where
     };
     for (change, path) in changes.iter().zip(paths) {
         let outcome = (|| {
-            // Recheck immediately before each write. External processes do not share SAVE_LOCK.
+            // recheck right before writing, other processes don't take SAVE_LOCK
             if fs::read_to_string(&path).map_err(|e| e.to_string())? != change.before {
                 return Err("SAVE_CONFLICT".into());
             }

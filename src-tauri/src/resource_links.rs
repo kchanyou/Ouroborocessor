@@ -1,4 +1,4 @@
-// Submission exports display link labels; project backups retain the exact source.
+// exports show labels only, backups keep the raw link
 pub fn display_text(source: &str) -> String {
     let mut output = String::new();
     let mut rest = source;

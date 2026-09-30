@@ -4,7 +4,7 @@ import { editorThemes, fontPreferences, sanitizeFontName, type EditorTheme, type
 
 type Palette = { page: string; ink: string; muted: string; dark: boolean };
 
-// "auto" follows the app theme; "custom" is built from the writer's two colors.
+// auto = app theme, custom = user's two colors
 const palettes: Record<Exclude<EditorTheme, "auto" | "custom">, Palette> = {
   paper: { page: "#fbf8f1", ink: "#2b2926", muted: "#6d675e", dark: false },
   sepia: { page: "#f1e6d0", ink: "#43372a", muted: "#7a6a55", dark: false },
@@ -22,7 +22,7 @@ export const fontStacks: Record<Exclude<FontPreference, "custom">, string> = {
   mono: `"SFMono-Regular", "Cascadia Mono", "Noto Sans Mono CJK KR", "Noto Sans Mono", Consolas, monospace`,
 };
 
-// Installed fonts can't be enumerated in the WebView, so offer common ones as suggestions.
+// can't list installed fonts in the WebView, so just suggest common ones
 const fontSuggestions = ["Apple SD Gothic Neo", "AppleMyungjo", "Nanum Gothic", "Nanum Myeongjo", "Nanum Pen Script", "Pretendard", "Noto Serif KR", "Hiragino Mincho ProN", "Palatino", "Baskerville", "Georgia", "Avenir Next", "Helvetica Neue"];
 
 function isDarkColor(hex: string) {
@@ -43,7 +43,6 @@ export function customFontStack(name: string) {
   return clean ? `"${clean}", ${serifStack}` : serifStack;
 }
 
-/** CSS variables that re-color the writing area without touching the app chrome. */
 export function editorAppearanceStyle(prefs: WritingPreferences): CSSProperties {
   const palette = paletteFor(prefs);
   const style: Record<string, string> = { "--editor-font": prefs.fontFamily === "custom" ? customFontStack(prefs.customFont) : fontStacks[prefs.fontFamily] };

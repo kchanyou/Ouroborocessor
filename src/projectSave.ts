@@ -20,9 +20,8 @@ export function mergeProjectStructure(current: ProjectSnapshot, next: ProjectSna
   return { ...next, nodes: next.nodes.map((node) => ({ ...node, content: bodies.get(node.id) ?? node.content })) };
 }
 
-// Call inside the shared save queue: baselines must be read after earlier saves finish.
-// This is intentionally not a transaction. A failure leaves earlier successful saves
-// on disk, but never clears the failed or unvisited scenes' recovery drafts.
+// call inside the save queue (baselines after earlier saves)
+// not a transaction: on failure earlier saves stay, recovery drafts of the rest are kept
 export async function persistProjectScenes(
   project: ProjectSnapshot,
   baselines: Map<string, string>,

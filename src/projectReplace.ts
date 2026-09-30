@@ -20,7 +20,7 @@ export function validateBatchSnapshot(nodes: ManuscriptNode[], changes: BatchCha
   }
 }
 
-// Pure preparation only. Does not touch manuscript files or recovery storage.
+// no file or recovery writes here
 export function previewProjectReplacement(nodes: ManuscriptNode[], query: string, replacement: string, matchCase: boolean): ReplacementPreview[] {
   if (!query) return [];
   return exportScope(nodes, null).flatMap(({ node }) => {

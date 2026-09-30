@@ -32,7 +32,7 @@ export class EditorPort extends EventTarget {
 
 export function ManuscriptEditor(props: {
   ref: Ref<EditorPort>; content: string; projectPath: string; label: string; placeholder: string;
-  /** DOM id of the editable area; the main editor keeps "editor" for the skip link. */
+  // main editor must stay "editor" (skip link)
   editorId?: string;
   preferences: WritingPreferences; onChange: (content: string) => void;
   onComposition: (active: boolean) => void; onKeyDown: (event: KeyboardEvent) => void;
@@ -73,7 +73,7 @@ export function ManuscriptEditor(props: {
             port.dispatchEvent(new Event("select"));
           }
         }),
-        // Completion must consume Enter/arrows before CodeMirror's default keymap.
+        // before the default keymap, otherwise Enter/arrows get eaten
         Prec.highest(EditorView.domEventHandlers({
           keydown: forward, keyup: forward,
           dragstart: (event) => {
@@ -118,7 +118,7 @@ export function ManuscriptEditor(props: {
                 const position = editor.posAtCoords({ x: event.clientX, y: event.clientY }) ?? editor.state.selection.main.from;
                 const move = imageMove(editor.state.doc.toString(), range.from, range.to, position);
                 if (move) editor.dispatch({ changes: move.changes, selection: { anchor: move.selection }, scrollIntoView: true, userEvent: "move" });
-              } catch { /* Ignore malformed data from outside the editor. */ }
+              } catch { /* bad drop data */ }
               return true;
             }
             const dropped = Array.from(event.dataTransfer?.files ?? []);

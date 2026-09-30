@@ -4,7 +4,7 @@ import type { PaneId } from "./DocumentTabs";
 export type DropHint = { left: number; top: number; width: number; height: number };
 export type TabDragState = { key: string; title: string; from: PaneId; x: number; y: number; target: PaneId | null; hint: DropHint | null };
 
-/** Where a dragged tab would land. Dropping on the right part of the main pane splits it, as in VS Code. */
+// right part of main pane = split
 export function tabDropTarget(x: number, y: number, from: PaneId): { target: PaneId | null; hint: DropHint | null } {
   const paneRect = (pane: PaneId) => document.querySelector(`[data-pane-root="${pane}"]`)?.getBoundingClientRect() ?? null;
   const contains = (rect: DOMRect | null) => Boolean(rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
@@ -15,18 +15,14 @@ export function tabDropTarget(x: number, y: number, from: PaneId): { target: Pan
   if (!main || !contains(main)) return { target: null, hint: null };
   if (from === "side") return { target: "main", hint: hintOf(main) };
   if (x < main.left + main.width * 0.55) return { target: null, hint: null };
-  // With a side pane already open, the tab joins it; otherwise preview the new split.
+  // join the side pane if open, else preview a split
   return { target: "side", hint: side ? hintOf(side) : { left: main.left + main.width / 2, top: main.top, width: main.width / 2, height: main.height } };
 }
 
-/**
- * Tracks a pointer drag that started on a tab. Nothing happens until the pointer moves 6px, so a
- * plain click still selects the tab. `onDrop` receives the pane under the pointer on release;
- * Escape or pointercancel ends the drag without dropping.
- */
+// 6px threshold so clicks still work. Esc / pointercancel cancels
 export function startTabDrag(key: string, title: string, from: PaneId, event: ReactPointerEvent<HTMLElement>,
   onUpdate: (state: TabDragState | null) => void, onDrop: (target: PaneId | null) => void) {
-  // Touch users get the explicit move button instead; a drag would fight tab-strip scrolling.
+  // touch uses the move button, drag fights tab scrolling
   if (event.button !== 0 || event.pointerType === "touch") return;
   const startX = event.clientX;
   const startY = event.clientY;

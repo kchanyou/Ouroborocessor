@@ -1,7 +1,6 @@
 const LEGACY_PREFIX = "local-writer";
 
-// These values predate the product name. Keep them stable so upgrades retain
-// preferences, the recent project, and recovery drafts.
+// old names from before the rename. don't change or upgrades lose settings/drafts
 export const storageKeys = {
   appPreferences: `${LEGACY_PREFIX}.app-preferences.v1`,
   writingPreferences: `${LEGACY_PREFIX}.writing-preferences.v1`,

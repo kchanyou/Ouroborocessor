@@ -10,7 +10,6 @@ import { layoutText } from "./workspaceLayout";
 
 type Metadata = Partial<Pick<ManuscriptNode, "title" | "status" | "synopsis">>;
 
-/** Right-hand panel: image details, item metadata, statistics and typography for the main editor's item. */
 export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDraft, onAltDraftChange, onAltCommit, onReplaceImage, onRemoveImage,
   selectedNode, selectedScene, position, onOpenHistory, onMetadataChange, onMetadataCommit, metrics, writing, onWritingChange }: {
   locale: Locale; t: Translate; isMac: boolean; width: number; onResize: (width: number) => void;

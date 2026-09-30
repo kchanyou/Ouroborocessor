@@ -88,7 +88,7 @@ pub fn save_resource_card(
     let mut cards = list_resource_cards(project_path.clone())?;
     let index = cards.iter().position(|item| item.id == card.id);
     let current = index.map(|i| &cards[i]);
-    // Idempotent retry after an ambiguous response, without replacing other cards.
+    // safe to retry, doesn't touch other cards
     if current == Some(&card) {
         return Ok(cards);
     }

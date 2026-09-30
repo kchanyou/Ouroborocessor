@@ -353,7 +353,7 @@ fn write_manifest(project_path: &Path, manifest: &ProjectManifest) -> Result<(),
     }
     write_atomic(&path.join(MANIFEST_FILE), &json)?;
     let history = histories.entry(path).or_default();
-    // Adding/restoring scenes starts a new history boundary: undo never hides files.
+    // new history boundary so undo can't hide files
     let same_nodes = previous
         .as_ref()
         .and_then(|bytes| serde_json::from_slice::<ProjectManifest>(bytes).ok())
@@ -655,7 +655,7 @@ fn save_scene_checked(
     content: String,
     expected_content: String,
 ) -> Result<(), String> {
-    // Serialize guarded saves in this process. External programs do not share this lock.
+    // only serializes saves inside this process
     let _guard = SAVE_LOCK.lock().map_err(|e| e.to_string())?;
     let project = Path::new(&project_path);
     let manifest = read_manifest(project)?;
@@ -706,7 +706,7 @@ fn preserve_conflict_copy(
     load_project_from_path(project)
 }
 
-// A new directory for every export: never overwrite the source or an older backup.
+// new dir every time, never overwrite source or old backups
 #[tauri::command]
 fn export_project(project_path: String, destination: String) -> Result<String, String> {
     let source = Path::new(&project_path)
@@ -722,7 +722,7 @@ fn export_project(project_path: String, destination: String) -> Result<String, S
     let snapshot = load_project_from_path(&source)?;
     let output = destination.join(timestamp_id("Ouroborocessor-export")?);
     fs::create_dir(&output).map_err(storage_error)?;
-    // project.json is published last, so an interrupted copy is not a valid backup.
+    // project.json last so a half-done copy isn't a valid backup
     let backup = output.join("Project.story");
     fs::create_dir_all(backup.join("manuscript")).map_err(storage_error)?;
     for (meta, node) in manifest.nodes.iter().zip(&snapshot.nodes) {
@@ -1444,7 +1444,7 @@ mod tests {
         let project = create_test_project(&temp);
         let path = project.project_path.clone();
         let scene = project.nodes[1].id.clone();
-        // Existing manuscripts get their original text preserved before the first edit.
+        // keep original text before the first edit
         let manifest = read_manifest(Path::new(&path)).unwrap();
         let file = manifest.nodes[1].file.as_ref().unwrap();
         write_atomic(

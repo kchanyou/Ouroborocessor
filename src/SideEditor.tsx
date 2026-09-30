@@ -7,7 +7,7 @@ import { ManuscriptEditor, type EditorPort } from "./ManuscriptEditor";
 import { getTextMetrics } from "./textMetrics";
 import { readableResourceText } from "./resourceLinks";
 
-/** Editor for a scene in the side pane. Saving is handled by the caller through `onChange`. */
+// parent saves via onChange
 export function SideEditor({ scene, number, projectPath, locale, t, preferences, editorRef, onChange, onComposition, onImageRejected, imageUnsupported, imageMainOnly }: {
   scene: ManuscriptNode; number: number; projectPath: string; locale: Locale; t: Translate;
   preferences: WritingPreferences; editorRef: Ref<EditorPort>;

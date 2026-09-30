@@ -27,9 +27,7 @@ export function DocumentTabs({ nodes, references, activeKey, locale, onSelectNod
   nodes: ManuscriptNode[]; references: ReferenceTab[]; activeKey: string | null; locale: Locale;
   onSelectNode: (node: ManuscriptNode) => void; onSelectReference: (key: string) => void; onClose: (key: string) => void;
   pane?: PaneId; panelId?: string;
-  /** Sends a tab to the other pane. */
   onMove?: (key: string) => void;
-  /** Starts a pointer drag so the tab can be dropped onto the other pane. */
   onDragStart?: (key: string, title: string, event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const t = tabText[locale];
