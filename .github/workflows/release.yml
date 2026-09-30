@@ -21,11 +21,12 @@ jobs:
             os: macos-latest
             rust-targets: aarch64-apple-darwin x86_64-apple-darwin
             args: --target universal-apple-darwin
+          # 22.04 so the linux builds run on older glibc too
           - name: Linux
-            os: ubuntu-24.04
+            os: ubuntu-22.04
             args: ""
           - name: Linux ARM64
-            os: ubuntu-24.04-arm
+            os: ubuntu-22.04-arm
             args: ""
           # msi can't take versions like 0.1.0-beta.1
           - name: Windows
