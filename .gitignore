@@ -12,5 +12,4 @@ coverage/
 !.env.example
 
 # Local tooling and generated files
-.claude/
 src-tauri/gen/schemas/
