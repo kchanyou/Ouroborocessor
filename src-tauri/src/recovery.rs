@@ -79,6 +79,14 @@ pub fn write_recovery_draft(
 ) -> Result<(), String> {
     let _guard = SAVE_LOCK.lock().map_err(|e| e.to_string())?;
     let project = Path::new(&project_path);
+    let manifest = read_manifest(project)?;
+    if !manifest
+        .nodes
+        .iter()
+        .any(|node| node.id == scene_id && node.kind == NodeKind::Scene)
+    {
+        return Err("RECOVERY_INVALID".into());
+    }
     let mut drafts = read(project)?;
     let draft = RecoveryDraft {
         scene_id: scene_id.clone(),
@@ -116,6 +124,59 @@ pub fn clear_recovery_draft(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_scene_writes_preserve_existing_recovery_drafts() {
+        let temp = tempfile::tempdir().unwrap();
+        let project = create_project(
+            temp.path().to_string_lossy().into_owned(),
+            "Recovery".into(),
+            "Group".into(),
+            "Scene".into(),
+        )
+        .unwrap();
+        let scene = project.nodes[1].id.clone();
+        let recovery_path = Path::new(&project.project_path).join(RECOVERY_FILE);
+        for invalid_id in ["missing-scene".to_string(), project.nodes[0].id.clone()] {
+            assert_eq!(
+                write_recovery_draft(
+                    project.project_path.clone(),
+                    invalid_id,
+                    "invalid draft".into(),
+                    "".into(),
+                )
+                .unwrap_err(),
+                "RECOVERY_INVALID"
+            );
+            assert!(!recovery_path.exists());
+        }
+        write_recovery_draft(
+            project.project_path.clone(),
+            scene.clone(),
+            "safe draft".into(),
+            "".into(),
+        )
+        .unwrap();
+        let before = fs::read(&recovery_path).unwrap();
+        for invalid_id in ["missing-scene".to_string(), project.nodes[0].id.clone()] {
+            assert!(write_recovery_draft(
+                project.project_path.clone(),
+                invalid_id,
+                "invalid draft".into(),
+                "".into(),
+            )
+            .is_err());
+            assert_eq!(fs::read(&recovery_path).unwrap(), before);
+            assert_eq!(
+                list_recovery_drafts(project.project_path.clone()).unwrap(),
+                vec![RecoveryDraft {
+                    scene_id: scene.clone(),
+                    content: "safe draft".into(),
+                    base: "".into(),
+                }]
+            );
+        }
+    }
 
     #[test]
     fn writes_rebases_and_clears_drafts() {
