@@ -12,6 +12,7 @@ mod images;
 mod recovery;
 mod resource_links;
 mod resources;
+mod scene_operations;
 mod storage;
 pub(crate) use storage::{storage_error, write_atomic};
 static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -22,8 +23,8 @@ const LEGACY_APP_IDENTIFIER: &str = "com.example.localwriter";
 
 #[derive(Default)]
 struct EditHistory {
-    undo: Vec<(Vec<u8>, Vec<u8>)>,
-    redo: Vec<(Vec<u8>, Vec<u8>)>,
+    undo: Vec<(Vec<u8>, Vec<u8>, Vec<(String, String)>)>,
+    redo: Vec<(Vec<u8>, Vec<u8>, Vec<(String, String)>)>,
 }
 static EDIT_HISTORY: std::sync::OnceLock<
     std::sync::Mutex<std::collections::HashMap<PathBuf, EditHistory>>,
@@ -34,6 +35,7 @@ fn edit_history() -> &'static std::sync::Mutex<std::collections::HashMap<PathBuf
 
 #[tauri::command]
 fn undo_project_edit(project_path: String, redo: bool) -> Result<ProjectSnapshot, String> {
+    let _guard = SAVE_LOCK.lock().map_err(|e| e.to_string())?;
     let path = Path::new(&project_path)
         .canonicalize()
         .map_err(|e| e.to_string())?;
@@ -53,6 +55,13 @@ fn undo_project_edit(project_path: String, redo: bool) -> Result<ProjectSnapshot
         };
         if fs::read(path.join(MANIFEST_FILE)).map_err(|e| e.to_string())? != *expected {
             return Err("HISTORY_CONFLICT".into());
+        }
+        for (file, content) in &entry.2 {
+            if fs::read_to_string(checked_scene_path(&path, file)?).map_err(|e| e.to_string())?
+                != *content
+            {
+                return Err("HISTORY_CONFLICT".into());
+            }
         }
         let manifest: ProjectManifest =
             serde_json::from_slice(replacement).map_err(|e| e.to_string())?;
@@ -216,6 +225,8 @@ enum NodeKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NodeMeta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trashed: Option<String>,
     id: String,
     title: String,
     kind: NodeKind,
@@ -253,7 +264,7 @@ struct LegacyProjectManifest {
     scenes: Vec<LegacySceneMeta>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ManuscriptNode {
     id: String,
@@ -276,11 +287,27 @@ struct ProjectSnapshot {
 }
 
 fn timestamp_id(prefix: &str) -> Result<String, String> {
-    let nanos = SystemTime::now()
+    // The clock can repeat for back-to-back calls (macOS has microsecond resolution) and
+    // imports create many ids at once. Keep the all-digit format that journal and image
+    // names are validated against, but never hand out the same value twice.
+    static LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("시스템 시간 읽기 실패: {error}"))?
-        .as_nanos();
-    Ok(format!("{prefix}-{nanos}"))
+        .as_nanos() as u64;
+    let mut previous = LAST.load(std::sync::atomic::Ordering::Relaxed);
+    loop {
+        let next = now.max(previous + 1);
+        match LAST.compare_exchange_weak(
+            previous,
+            next,
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+        ) {
+            Ok(_) => return Ok(format!("{prefix}-{next}")),
+            Err(actual) => previous = actual,
+        }
+    }
 }
 
 fn safe_folder_name(title: &str) -> String {
@@ -339,6 +366,14 @@ fn legacy_default_project(app_data_dir: &Path) -> Result<Option<PathBuf>, String
 }
 
 fn write_manifest(project_path: &Path, manifest: &ProjectManifest) -> Result<(), String> {
+    write_manifest_with_files(project_path, manifest, None)
+}
+
+fn write_manifest_with_files(
+    project_path: &Path,
+    manifest: &ProjectManifest,
+    files: Option<Vec<(String, String)>>,
+) -> Result<(), String> {
     let json = serde_json::to_vec_pretty(manifest)
         .map_err(|error| format!("프로젝트 정보 생성 실패: {error}"))?;
     let path = project_path.canonicalize().map_err(|e| e.to_string())?;
@@ -361,12 +396,14 @@ fn write_manifest(project_path: &Path, manifest: &ProjectManifest) -> Result<(),
             old.nodes.iter().map(|n| &n.id).collect::<HashSet<_>>()
                 == manifest.nodes.iter().map(|n| &n.id).collect::<HashSet<_>>()
         });
-    if same_nodes {
+    if same_nodes || (previous.is_some() && files.is_some()) {
         let previous = previous.unwrap();
         if history.undo.last().is_some_and(|entry| entry.1 != previous) {
             history.undo.clear();
         }
-        history.undo.push((previous, json));
+        history
+            .undo
+            .push((previous, json, files.unwrap_or_default()));
         if history.undo.len() > 100 {
             history.undo.remove(0);
         }
@@ -385,6 +422,7 @@ fn convert_legacy(legacy: LegacyProjectManifest) -> ProjectManifest {
             .scenes
             .into_iter()
             .map(|scene| NodeMeta {
+                trashed: None,
                 id: scene.id,
                 title: scene.title,
                 kind: NodeKind::Scene,
@@ -408,6 +446,15 @@ fn validate_manifest(manifest: &ProjectManifest) -> Result<(), String> {
     }
 
     for node in &manifest.nodes {
+        if let Some(root) = &node.trashed {
+            if manifest.format_version < 3
+                || !manifest.nodes.iter().any(|candidate| {
+                    &candidate.id == root && candidate.trashed.as_ref() == Some(root)
+                })
+            {
+                return Err("SCENE_OPERATION_INVALID".into());
+            }
+        }
         if node.kind == NodeKind::Scene && node.file.is_none() {
             return Err(format!("‘{}’ 장면 원고 파일 없음", node.title));
         }
@@ -429,6 +476,9 @@ fn validate_manifest(manifest: &ProjectManifest) -> Result<(), String> {
                 .iter()
                 .find(|candidate| candidate.id == parent_id)
                 .ok_or_else(|| "상위 그룹 없음".to_string())?;
+            if node.trashed.is_none() && parent.trashed.is_some() {
+                return Err("SCENE_RESTORE_PARENT".into());
+            }
             if parent.kind != NodeKind::Group {
                 return Err("장면 아래의 다른 항목 포함 불가".to_string());
             }
@@ -455,7 +505,7 @@ fn read_manifest(project_path: &Path) -> Result<ProjectManifest, String> {
             debug_assert_eq!(legacy.format_version, 1);
             convert_legacy(legacy)
         }
-        FORMAT_VERSION => serde_json::from_value(value)
+        FORMAT_VERSION | 3 => serde_json::from_value(value)
             .map_err(|error| format!("프로젝트 정보 형식 오류: {error}"))?,
         _ => return Err(format!("지원하지 않는 프로젝트 형식(버전 {version})")),
     };
@@ -482,7 +532,7 @@ fn load_project_from_path(project_path: &Path) -> Result<ProjectSnapshot, String
     }
     let manifest = read_manifest(project_path)?;
     let mut nodes = Vec::with_capacity(manifest.nodes.len());
-    for node in &manifest.nodes {
+    for node in manifest.nodes.iter().filter(|node| node.trashed.is_none()) {
         let content = match (&node.kind, &node.file) {
             (NodeKind::Scene, Some(file)) => {
                 fs::read_to_string(checked_scene_path(project_path, file)?)
@@ -542,6 +592,7 @@ fn create_project(
         title: title.to_string(),
         nodes: vec![
             NodeMeta {
+                trashed: None,
                 id: group_id.clone(),
                 title: first_group_title.trim().to_string(),
                 kind: NodeKind::Group,
@@ -551,6 +602,7 @@ fn create_project(
                 synopsis: String::new(),
             },
             NodeMeta {
+                trashed: None,
                 id: scene_id,
                 title: first_scene_title.trim().to_string(),
                 kind: NodeKind::Scene,
@@ -610,6 +662,7 @@ fn add_node(
         None
     };
     manifest.nodes.push(NodeMeta {
+        trashed: None,
         id: node_id,
         title: title.trim().to_string(),
         kind: node_kind.clone(),
@@ -725,13 +778,15 @@ fn export_project(project_path: String, destination: String) -> Result<String, S
     // project.json last so a half-done copy isn't a valid backup
     let backup = output.join("Project.story");
     fs::create_dir_all(backup.join("manuscript")).map_err(storage_error)?;
-    for (meta, node) in manifest.nodes.iter().zip(&snapshot.nodes) {
+    for meta in &manifest.nodes {
         if let Some(file) = &meta.file {
             let target = checked_scene_path(&backup, file)?;
             if let Some(parent) = target.parent() {
                 fs::create_dir_all(parent).map_err(storage_error)?;
             }
-            write_atomic(&target, node.content.as_bytes())?;
+            let content =
+                fs::read(checked_scene_path(&source, file)?).map_err(|e| e.to_string())?;
+            write_atomic(&target, &content)?;
         }
     }
     let markdown = compile_markdown(&snapshot);
@@ -850,7 +905,9 @@ fn sibling_positions(manifest: &ProjectManifest, node_id: &str) -> Result<Vec<us
         .nodes
         .iter()
         .enumerate()
-        .filter_map(|(index, candidate)| (candidate.parent_id == node.parent_id).then_some(index))
+        .filter_map(|(index, candidate)| {
+            (candidate.parent_id == node.parent_id && candidate.trashed.is_none()).then_some(index)
+        })
         .collect())
 }
 
@@ -999,6 +1056,8 @@ pub fn run() {
             images::save_image,
             images::import_image,
             images::read_image,
+            scene_operations::apply_scene_operation,
+            scene_operations::list_manuscript_trash,
             recovery::list_recovery_drafts,
             recovery::write_recovery_draft,
             recovery::clear_recovery_draft,

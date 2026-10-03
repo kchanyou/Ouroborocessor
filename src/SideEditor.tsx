@@ -21,7 +21,7 @@ export function SideEditor({ scene, number, projectPath, locale, t, preferences,
       <h1 id="side-item-title">{scene.title}</h1>
       <span>{statusLabel(scene.status, t)}</span>
     </header>
-    <ManuscriptEditor key={`side:${projectPath}:${scene.id}`} projectPath={projectPath} ref={editorRef} editorId="side-editor"
+    <ManuscriptEditor key={`side:${projectPath}:${scene.id}`} projectPath={projectPath} sceneId={scene.id} pane="side" ref={editorRef} editorId="side-editor"
       label={`${scene.title} · ${t("scene")}`} content={scene.content} preferences={preferences}
       onChange={onChange} onComposition={onComposition}
       onImages={() => onImageRejected(imageMainOnly)} onImageError={() => onImageRejected(imageUnsupported)} onImageSelect={() => {}}

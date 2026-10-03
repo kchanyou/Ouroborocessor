@@ -10,7 +10,7 @@ import { layoutText } from "./workspaceLayout";
 type TreeButtonEvent = PointerEvent<HTMLButtonElement>;
 
 export function ManuscriptNavigator({ t, locale, width, onResize, query, onQueryChange, itemCount, history, tree, selectedId, collapsedIds, tabStopId,
-  draggingId, dropTarget, characterCount, drag, actions, moves }: {
+  draggingId, dropTarget, characterCount, drag, actions, moves, tools }: {
   t: Translate; locale: Locale; width: number; onResize: (width: number) => void;
   query: string; onQueryChange: (query: string) => void; itemCount: number;
   history: { canUndo: boolean; canRedo: boolean; busy: boolean; run: (redo: boolean) => void };
@@ -23,6 +23,8 @@ export function ManuscriptNavigator({ t, locale, width, onResize, query, onQuery
     keyboard: (event: KeyboardEvent<HTMLButtonElement>, index: number) => void;
   };
   moves: { up: boolean; down: boolean; indent: boolean; outdent: boolean };
+  /** Manuscript import and trash, shown next to the add buttons. */
+  tools?: { importManuscript: () => void; openTrash: () => void; importLabel: string; trashLabel: string };
 }) {
   return (
     <aside className="navigator" aria-labelledby="navigator-title">
@@ -32,6 +34,10 @@ export function ManuscriptNavigator({ t, locale, width, onResize, query, onQuery
         <div className="panel-actions">
           <button type="button" className="panel-action" onClick={() => actions.add("group")} aria-label={t("newGroup")} title={t("newGroup")}><Icon name="folder" /><span className="add-badge" aria-hidden="true">+</span></button>
           <button type="button" className="panel-action" onClick={() => actions.add("scene")} aria-label={t("newScene")} title={t("newScene")}><Icon name="document" /><span className="add-badge" aria-hidden="true">+</span></button>
+          {tools && <>
+            <button type="button" className="panel-action" onClick={tools.importManuscript} aria-label={tools.importLabel} title={tools.importLabel}><Icon name="import" /></button>
+            <button type="button" className="panel-action" onClick={tools.openTrash} aria-label={tools.trashLabel} title={tools.trashLabel}><Icon name="trash" /></button>
+          </>}
         </div>
       </div>
       <label className="search-field">

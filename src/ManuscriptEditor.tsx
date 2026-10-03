@@ -6,6 +6,7 @@ import { editorChange, createEditorLinks } from "./editorLinks";
 import { IMAGE_DRAG_TYPE, imageMove, parseImages } from "./manuscriptImages";
 import { isSupportedImageFile } from "./imageDrop";
 import type { WritingPreferences } from "./preferences";
+import { readPosition, savePosition } from "./workspaceSession";
 
 export class EditorPort extends EventTarget {
   view: EditorView | null = null;
@@ -34,6 +35,7 @@ export function ManuscriptEditor(props: {
   ref: Ref<EditorPort>; content: string; projectPath: string; label: string; placeholder: string;
   // main editor must stay "editor" (skip link)
   editorId?: string;
+  sceneId?: string; pane?: "main" | "side";
   preferences: WritingPreferences; onChange: (content: string) => void;
   onComposition: (active: boolean) => void; onKeyDown: (event: KeyboardEvent) => void;
   onImages: (files: File[], from: number, to: number) => void;
@@ -150,7 +152,25 @@ export function ManuscriptEditor(props: {
       ],
     }) });
     port.view = view;
-    return () => { port.view = null; view.destroy(); current.current.onComposition(false); };
+    const { projectPath, sceneId, pane = "main" } = current.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const save = () => {
+      if (sceneId) savePosition(projectPath, sceneId, pane, {
+        anchor: view.state.selection.main.anchor, head: view.state.selection.main.head,
+        top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft,
+      });
+    };
+    const schedule = () => { clearTimeout(timer); timer = setTimeout(save, 150); };
+    const saved = sceneId ? readPosition(projectPath, sceneId, pane, view.state.doc.length) : null;
+    if (saved) view.dispatch({ selection: { anchor: saved.anchor, head: saved.head } });
+    const frame = requestAnimationFrame(() => { if (saved) { view.scrollDOM.scrollTop = saved.top; view.scrollDOM.scrollLeft = saved.left; } });
+    port.addEventListener("select", schedule); view.scrollDOM.addEventListener("scroll", schedule);
+    window.addEventListener("pagehide", save);
+    return () => {
+      cancelAnimationFrame(frame); clearTimeout(timer); save();
+      port.removeEventListener("select", schedule); view.scrollDOM.removeEventListener("scroll", schedule); window.removeEventListener("pagehide", save);
+      port.view = null; view.destroy(); current.current.onComposition(false);
+    };
   }, [port, attributes, editorLinks]);
   useLayoutEffect(() => {
     const view = port.view;

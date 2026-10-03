@@ -12,13 +12,15 @@ export type IconName =
   | "focus"
   | "folder"
   | "indent"
+  | "import"
   | "inspector"
   | "outdent"
   | "search"
   | "searchAll"
   | "settings"
   | "sidebar"
-  | "splitRight";
+  | "splitRight"
+  | "trash";
 
 const paths: Record<IconName, ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
@@ -41,6 +43,7 @@ const paths: Record<IconName, ReactNode> = {
   focus: <path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" />,
   folder: <path d="M3.5 7.5h6l2-2h9v13h-17v-11Z" />,
   indent: <path d="M4 6h9M4 10h9M4 14h5M4 18h5m5-6 4 3-4 3" />,
+  import: <path d="M12 4v10m-4-4 4 4 4-4M5 14v5h14v-5" />,
   inspector: <path d="M4 5h16v14H4V5Zm11 0v14M17.5 9h.01M17.5 12h.01" />,
   outdent: <path d="M4 6h9M4 10h9M8 14h5M8 18h5m-9-3 4-3v6Z" />,
   search: (
@@ -64,6 +67,7 @@ const paths: Record<IconName, ReactNode> = {
   ),
   sidebar: <path d="M4 5h16v14H4V5Zm5 0v14M6.5 8h.01M6.5 11h.01" />,
   splitRight: <path d="M4 5h16v14H4V5Zm8 0v14m3-8.5 2 1.5-2 1.5" />,
+  trash: <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5" />,
 };
 
 export function AppIcon({ name }: { name: IconName }) {

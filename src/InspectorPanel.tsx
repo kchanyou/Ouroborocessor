@@ -7,11 +7,15 @@ import type { getTextMetrics } from "./textMetrics";
 import { NumericSetting } from "./NumericSetting";
 import { PanelResize } from "./WorkspaceControls";
 import { layoutText } from "./workspaceLayout";
+import type { ReactNode } from "react";
 
 type Metadata = Partial<Pick<ManuscriptNode, "title" | "status" | "synopsis">>;
 
 export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDraft, onAltDraftChange, onAltCommit, onReplaceImage, onRemoveImage,
-  selectedNode, selectedScene, position, onOpenHistory, onMetadataChange, onMetadataCommit, metrics, writing, onWritingChange }: {
+  selectedNode, selectedScene, position, onOpenHistory, onMetadataChange, onMetadataCommit, metrics, writing, onWritingChange, goalsSection, itemActions }: {
+  goalsSection?: ReactNode;
+  /** Split, merge and trash commands for the selected item. */
+  itemActions?: Array<{ id: string; label: string; run: () => void }>;
   locale: Locale; t: Translate; isMac: boolean; width: number; onResize: (width: number) => void;
   image: { name: string; alt: string } | null; altDraft: string; onAltDraftChange: (value: string) => void; onAltCommit: (value: string) => void;
   onReplaceImage: () => void; onRemoveImage: () => void;
@@ -48,7 +52,6 @@ export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDr
       {selectedNode && (
         <details className="inspector-section" open>
           <summary>{t("itemInformation")}</summary>
-          {selectedScene && <button type="button" className="toolbar-button" onClick={onOpenHistory}>{t("sceneHistory")}</button>}
           <label className="inspector-field">
             <span>{t("title")}</span>
             <input value={selectedNode.title} onChange={(event) => onMetadataChange({ title: event.target.value })} onBlur={onMetadataCommit} />
@@ -73,6 +76,10 @@ export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDr
               </label>
             </>
           )}
+          <div className="item-actions">
+            {selectedScene && <button type="button" onClick={onOpenHistory}>{t("sceneHistory")}</button>}
+            {itemActions?.map((action) => <button type="button" key={action.id} onClick={action.run}>{action.label}</button>)}
+          </div>
         </details>
       )}
 
@@ -108,6 +115,7 @@ export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDr
         </>
       )}
 
+      {goalsSection}
       <p className="shortcut-help">
         {t("moveShortcut", { alt: isMac ? "⌥" : "Alt", shift: isMac ? "⇧" : "Shift" })}
       </p>

@@ -1,8 +1,9 @@
-export type ShortcutCommand = "quickOpen" | "commandPalette" | "closeTab" | "nextTab" | "previousTab" | "insertImage" | "openResearch" | "toggleSidebar" | "splitRight";
+export type ShortcutCommand = "quickOpen" | "commandPalette" | "closeTab" | "reopenTab" | "nextTab" | "previousTab" | "insertImage" | "openResearch" | "toggleSidebar" | "splitRight";
 
 export type Shortcut = { key: string; mod?: boolean; ctrl?: boolean; shift?: boolean };
 
 export const shortcuts: Record<ShortcutCommand, Shortcut> = {
+  reopenTab: { key: "t", mod: true, shift: true },
   quickOpen: { key: "p", mod: true },
   commandPalette: { key: "p", mod: true, shift: true },
   closeTab: { key: "w", mod: true },

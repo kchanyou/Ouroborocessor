@@ -3,6 +3,16 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { ManuscriptNode, NodeKind, ProjectSnapshot, ResourceCard } from "./types";
 import type { BatchChange, BatchResult } from "./projectReplace";
 import type { RecoveryDraftEntry } from "./draftRecovery";
+import type { ImportedScene } from "./importManuscript";
+
+export type SceneOperation =
+  | { type: "import"; parent: string | null; scenes: ImportedScene[] }
+  | { type: "split"; id: string; offset: number; title: string }
+  | { type: "merge"; id: string; next: string }
+  | { type: "trash" | "restore"; id: string };
+export type ManuscriptTrashItem = { id: string; title: string; count: number; parentAvailable: boolean };
+export const applySceneOperation = (project: ProjectSnapshot, operation: SceneOperation) => invoke<ProjectSnapshot>("apply_scene_operation", { projectPath: project.projectPath, expectedNodes: project.nodes, operation });
+export const listManuscriptTrash = (projectPath: string) => invoke<ManuscriptTrashItem[]>("list_manuscript_trash", { projectPath });
 
 export function applyBatchEdit(projectPath: string, changes: BatchChange[]) {
   return invoke<BatchResult>("apply_batch_edit", { projectPath, changes });

@@ -55,6 +55,16 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ResourceLinks } from "./ResourceLinkPanel";
 import { ManuscriptEditor, type EditorPort } from "./ManuscriptEditor";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
+import { readSession, saveSession, rememberProject, relocateSession, insertTab, type ClosedTab, type ReferenceSession } from "./workspaceSession";
+import { quickOpenDocuments } from "./quickOpen";
+import { featureText } from "./featureText";
+import { RecentProjectsDialog } from "./RecentProjectsDialog";
+import { SceneToolsDialog, type SceneTool } from "./SceneToolsDialog";
+import { applySceneOperation, listResourceCards, type SceneOperation } from "./tauriApi";
+import { writingToolsText } from "./writingToolsText";
+import "./writingTools.css";
+import { WritingGoals } from "./WritingGoalsPanel";
+import { recordWriting } from "./writingGoals";
 import { matchesShortcut, shortcutLabel, shortcuts } from "./shortcuts";
 import { isSupportedImageFile, logicalDropPoint, supportedImagePaths } from "./imageDrop";
 import { removeImage, updateImageAlt } from "./manuscriptImages";
@@ -104,6 +114,10 @@ function App() {
   const [project, setProject] = useState<ProjectSnapshot | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [documentTabs, setDocumentTabs] = useState<string[]>([]);
+  const [recentDocuments, setRecentDocuments] = useState<string[]>([]);
+  const [recentProjectsOpen, setRecentProjectsOpen] = useState(false);
+  const [sceneTool, setSceneTool] = useState<{ mode: SceneTool; offset: number } | null>(null);
+  const closedTabs = useRef<ClosedTab[]>([]);
   useEffect(() => {
     setDocumentTabs(current => {
       const valid = current.filter(id => project?.nodes.some(node => node.id === id));
@@ -178,6 +192,8 @@ function App() {
   const platform = useMemo(() => detectPlatform(), []);
   const isMac = platform === "apple" && /Macintosh|Mac OS X/.test(navigator.userAgent);
   const locale = appPreferences.locale;
+  const features = featureText[locale];
+  const toolsText = writingToolsText[locale];
   const t = useCallback<Translate>((key, values) => translate(locale, key, values), [locale]);
   const dropT = imageDropText[locale];
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
@@ -249,28 +265,44 @@ function App() {
     savePreferences(WRITING_PREFERENCES_KEY, writingPreferences);
   }, [writingPreferences]);
 
-  const acceptProject = useCallback((next: ProjectSnapshot, nativeDrafts: RecoveryDraftEntry[] = [], nativeRecoveryError = false) => {
+  const acceptProject = useCallback((next: ProjectSnapshot, nativeDrafts: RecoveryDraftEntry[] = [], nativeRecoveryError = false, cards?: ResourceCard[]) => {
     const recovery = recoverProjectDrafts(next, diskContents.current, nativeDrafts);
     const { recovered, recoveryError } = recovery;
     next = recovery.project;
     const firstScene = next.nodes.find((node) => node.kind === "scene");
     const last = loadPreferences(storageKeys.lastProject, { path: "", nodeId: "" });
     const restored = last.path === next.projectPath ? next.nodes.find((node) => node.id === last.nodeId) : null;
+    const session = readSession(next);
+    if (session && cards) {
+      session.references = session.references.flatMap((ref): ReferenceSession[] => {
+        if (!ref.card) return [{ ...ref, title: tabText[loadPreferences(APP_PREFERENCES_KEY, defaultAppPreferences).locale].resources }];
+        const card = cards.find(card => card.id === ref.card?.id && !card.deleted);
+        return card ? [{ key: ref.key, title: card.name, card }] : [];
+      });
+      const valid = (key: string) => key.startsWith("node:") || session.references.some(ref => ref.key === key);
+      session.main = session.main.filter(valid); session.side = session.side.filter(valid);
+      if (session.active && !session.main.includes(session.active)) session.active = session.main.at(-1) ?? null;
+      if (session.sideActive && !session.side.includes(session.sideActive)) session.sideActive = session.side.at(-1) ?? null;
+    }
+    closedTabs.current = [];
+    setRecentDocuments(session?.recent ?? []);
+    rememberProject({ path: next.projectPath, title: next.title });
     setProject(next);
     metadataBaselines.current = new Map(next.nodes.map((node) => [JSON.stringify([next.projectPath, node.id]), { title: node.title, status: node.status, synopsis: node.synopsis }]));
-    setReferenceTabs([]);
-    setMainReferenceKeys([]);
-    setActiveReferenceKey(null);
-    setSideTabs([]);
-    setSideActiveKey(null);
+    setReferenceTabs(session?.references ?? []);
+    setMainReferenceKeys(session?.main.filter(key => key.startsWith("reference:")) ?? []);
+    setActiveReferenceKey(session?.active?.startsWith("reference:") ? session.active : null);
+    setSideTabs(session?.side ?? []);
+    setSideActiveKey(session?.sideActive ?? null);
     setSelectedImage(null);
     setPaletteMode(null);
     setBatchUndo(null);
-    setDocumentTabs([]);
+    setDocumentTabs(session?.main.filter(key => key.startsWith("node:")).map(key => key.slice(5)) ?? []);
     savePreferences(storageKeys.lastProject, { path: next.projectPath });
-    setCollapsedNodes(new Set());
+    setCollapsedNodes(new Set(session?.collapsed ?? []));
     setTreeQuery("");
-    setSelectedNodeId(restored?.id ?? firstScene?.id ?? next.nodes[0]?.id ?? null);
+    setSelectedNodeId(session ? (session.active?.startsWith("node:") ? session.active.slice(5) : null) : restored?.id ?? firstScene?.id ?? next.nodes[0]?.id ?? null);
+    if (session) { setLayout(session.layout); setShowNavigator(session.layout.navigator); setShowInspector(session.layout.inspector); }
     setSaveState(recovered ? "dirty" : "saved");
     setConflict(false);
     const activeLocale = loadPreferences(APP_PREFERENCES_KEY, defaultAppPreferences).locale;
@@ -282,12 +314,22 @@ function App() {
     requestAnimationFrame(() => editorRef.current?.focus());
   }, []);
 
+  useEffect(() => {
+    if (!project) return;
+    saveSession(project.projectPath, {
+      main: tabOrder, side: sideTabs, active: activeTabKey, sideActive: sideActiveKey,
+      collapsed: [...collapsedNodes], recent: recentDocuments, references: referenceTabs,
+      layout: { ...layout, navigator: focusMode ? previousPanels.current.navigator : showNavigator, inspector: focusMode ? previousPanels.current.inspector : showInspector },
+    });
+  }, [project?.projectPath, tabOrder, sideTabs, activeTabKey, sideActiveKey, collapsedNodes, recentDocuments, referenceTabs, layout, showNavigator, showInspector, focusMode]);
+
+  useEffect(() => {
+    if (selectedNodeId) setRecentDocuments(current => [selectedNodeId, ...current.filter(id => id !== selectedNodeId)].slice(0, 100));
+  }, [selectedNodeId]);
+
   const acceptProjectWithRecovery = useCallback(async (next: ProjectSnapshot) => {
-    try {
-      acceptProject(next, await listRecoveryDrafts(next.projectPath));
-    } catch {
-      acceptProject(next, [], true);
-    }
+    const [drafts, resources] = await Promise.allSettled([listRecoveryDrafts(next.projectPath), listResourceCards(next.projectPath)]);
+    acceptProject(next, drafts.status === "fulfilled" ? drafts.value : [], drafts.status === "rejected", resources.status === "fulfilled" ? resources.value : undefined);
   }, [acceptProject]);
 
   useEffect(() => {
@@ -465,7 +507,22 @@ function App() {
 
   async function closeTab(key: string) {
     try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
+    if (tabOrder.includes(key)) closedTabs.current.push({ key, pane: "main", index: key.startsWith("node:") ? documentTabs.indexOf(key.slice(5)) : mainReferenceKeys.indexOf(key), reference: referenceTabs.find(tab => tab.key === key) });
     removeFromMain(key);
+  }
+
+  async function reopenClosedTab() {
+    try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
+    let tab = closedTabs.current.pop();
+    while (tab && tab.key.startsWith("node:") && !project?.nodes.some(node => `node:${node.id}` === tab!.key)) tab = closedTabs.current.pop();
+    if (!tab) return;
+    const restored = tab;
+    if (restored.reference) setReferenceTabs(current => current.some(item => item.key === restored.key) ? current : [...current, restored.reference!]);
+    if (restored.pane === "side") { setSideTabs(current => insertTab(current, restored.key, restored.index)); setSideActiveKey(restored.key); }
+    else if (restored.key.startsWith("node:")) {
+      setDocumentTabs(current => insertTab(current, restored.key.slice(5), restored.index));
+      setActiveReferenceKey(null); setSelectedNodeId(restored.key.slice(5));
+    } else { setMainReferenceKeys(current => insertTab(current, restored.key, restored.index)); setActiveReferenceKey(restored.key); }
   }
 
   // move=false keeps it in main too. last tab never gets moved out
@@ -478,7 +535,10 @@ function App() {
 
   async function switchSideTab(key: string | null, then?: () => void) {
     try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
-    if (key) setSideActiveKey(key);
+    if (key) {
+      setSideActiveKey(key);
+      if (key.startsWith("node:")) setRecentDocuments(current => [key.slice(5), ...current.filter(id => id !== key.slice(5))].slice(0, 100));
+    }
     then?.();
   }
 
@@ -494,7 +554,10 @@ function App() {
   }
 
   function closeSideTab(key: string) {
-    void switchSideTab(null, () => setSideTabs((current) => current.filter((item) => item !== key)));
+    void switchSideTab(null, () => {
+      if (sideTabs.includes(key)) closedTabs.current.push({ key, pane: "side", index: sideTabs.indexOf(key), reference: referenceTabs.find(tab => tab.key === key) });
+      setSideTabs((current) => current.filter((item) => item !== key));
+    });
   }
 
   // main empty -> side tabs move over
@@ -608,6 +671,7 @@ function App() {
         event.preventDefault(); setPaletteMode("files"); return;
       }
       if (insideDialog) return;
+      if (matchesShortcut(event, shortcuts.reopenTab, isMac)) { event.preventDefault(); void reopenClosedTab(); return; }
       if (matchesShortcut(event, shortcuts.closeTab, isMac) && activeTabKey) { event.preventDefault(); void closeTab(activeTabKey); return; }
       if (matchesShortcut(event, shortcuts.nextTab, isMac)) { event.preventDefault(); cycleTab(1); return; }
       if (matchesShortcut(event, shortcuts.previousTab, isMac)) { event.preventDefault(); cycleTab(-1); return; }
@@ -642,7 +706,28 @@ function App() {
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [activeReferenceKey, activeTabKey, focusMode, isMac, locale, persistSelected, project, selectedScene, showInspector, showNavigator, tabOrder]);
+  }, [activeReferenceKey, activeTabKey, focusMode, isMac, locale, persistSelected, project, selectedScene, showInspector, showNavigator, tabOrder, referenceTabs, sideTabs, mainReferenceKeys]);
+
+  // Counting a long scene is expensive, so goal progress is recorded once typing pauses,
+  // as one change from the first unrecorded text to the latest text per scene.
+  const pendingGoalEdits = useRef(new Map<string, { path: string; before: string; after: string }>());
+  const goalTimer = useRef<number | undefined>(undefined);
+  const flushGoalRecords = useCallback(() => {
+    window.clearTimeout(goalTimer.current);
+    for (const { path, before, after } of pendingGoalEdits.current.values()) recordWriting(path, before, after);
+    pendingGoalEdits.current.clear();
+  }, []);
+  function queueGoalRecord(path: string, sceneId: string, before: string, after: string) {
+    const key = JSON.stringify([path, sceneId]);
+    const pending = pendingGoalEdits.current.get(key);
+    pendingGoalEdits.current.set(key, { path, before: pending?.before ?? before, after });
+    window.clearTimeout(goalTimer.current);
+    goalTimer.current = window.setTimeout(flushGoalRecords, 1500);
+  }
+  useEffect(() => {
+    window.addEventListener("pagehide", flushGoalRecords);
+    return () => { window.removeEventListener("pagehide", flushGoalRecords); flushGoalRecords(); };
+  }, [flushGoalRecords]);
 
   function updateContent(content: string) {
     if (selectedScene) updateSceneContent(selectedScene.id, content);
@@ -661,6 +746,7 @@ function App() {
       try { await writeRecoveryDraft(project.projectPath, sceneId, content, base); }
       catch (reason) { setError(t("recoveryFailed")); throw reason; }
     });
+    queueGoalRecord(project.projectPath, sceneId, scene.content, content);
     editRevision.current += 1;
     setProject((current) => current ? {
       ...current,
@@ -752,14 +838,19 @@ function App() {
     }
   }
 
-  async function handleOpenAnother() {
-    try {
-      await persistSelected();
-      const path = await chooseFolder(t("chooseStoryFolder"));
-      if (path) await acceptProjectWithRecovery(await openProject(path));
-    } catch (reason) {
-      setError(localizedError(reason, locale));
-    }
+  async function openRecentProject(path: string) {
+    await persistForExport();
+    await acceptProjectWithRecovery(await openProject(path));
+  }
+
+  async function locateProject(oldPath?: string) {
+    await persistForExport();
+    const path = await chooseFolder(t("chooseStoryFolder"));
+    if (!path) return false;
+    const next = await openProject(path);
+    if (oldPath) relocateSession(oldPath, next);
+    await acceptProjectWithRecovery(next);
+    return true;
   }
 
   async function handleEditHistory(redo: boolean) {
@@ -767,17 +858,26 @@ function App() {
     historyBusyRef.current = true;
     setHistoryBusy(true);
     try {
-      await metadataQueue.current;
-      await persistSelected();
+      await persistForExport();
       const next = await undoProjectEdit(project.projectPath, redo);
-      for (const node of next.nodes) metadataBaselines.current.set(JSON.stringify([next.projectPath, node.id]), { title: node.title, status: node.status, synopsis: node.synopsis });
-      // history only touches metadata/order, never overwrite draft text
-      setProject((current) => current?.projectPath === next.projectPath ? {
-        ...next, nodes: next.nodes.map((node) => ({ ...node, content: current.nodes.find((old) => old.id === node.id)?.content ?? node.content })),
-      } : current);
+      acceptProject(next);
       setAnnouncement(t(redo ? "redoEdit" : "undoEdit"));
     } catch (reason) { setError(localizedError(reason, locale)); }
     finally { historyBusyRef.current = false; setHistoryBusy(false); }
+  }
+
+  async function performSceneOperation(operation: SceneOperation) {
+    if (!project || historyBusyRef.current) throw new Error("BATCH_BUSY");
+    historyBusyRef.current = true; setHistoryBusy(true);
+    try {
+      await persistForExport();
+      const current = liveProject.current;
+      if (!current || current.projectPath !== project.projectPath) throw new Error("SCENE_OPERATION_CONFLICT");
+      const next = await applySceneOperation(current, operation);
+      acceptProject(next);
+      const added = next.nodes.find(node => !current.nodes.some(old => old.id === node.id));
+      if (added) { setActiveReferenceKey(null); setSelectedNodeId(added.id); }
+    } finally { historyBusyRef.current = false; setHistoryBusy(false); }
   }
 
   function acceptStructure(next: ProjectSnapshot) {
@@ -1065,6 +1165,7 @@ function App() {
         for (const change of applied) {
           diskContents.current.set(JSON.stringify([path, change.sceneId]), change.after);
         }
+        for (const change of applied) recordWriting(path, change.before, change.after);
         const bodies = new Map(applied.map((change) => [change.sceneId, change.after]));
         setProject((current) => current?.projectPath === path ? { ...current, nodes: current.nodes.map((node) => bodies.has(node.id) ? { ...node, content: bodies.get(node.id)! } : node) } : current);
         setBatchUndo((previous) => undo ? (previous && { ...previous, changes: previous.changes.filter((change) => !completed.has(change.sceneId)) }) : { path, changes: applied });
@@ -1159,9 +1260,24 @@ function App() {
     ja: { image: "画像を追加", research: "資料を開く", close: "現在のタブを閉じる", next: "次のタブ", previous: "前のタブ", sidebar: "原稿リストの表示を切り替え", settings: "設定を開く" },
     zh: { image: "添加图片", research: "打开资料", close: "关闭当前标签页", next: "下一个标签页", previous: "上一个标签页", sidebar: "显示或隐藏文稿列表", settings: "打开设置" },
   })[locale];
+  const nextSibling = siblings[siblingIndex + 1];
+  const nextMergeScene = nextSibling?.kind === "scene" ? nextSibling : null;
+  const sceneCommands: PaletteItem[] = project ? [
+    { id: "import-manuscript", title: toolsText.importManuscript, run: () => setSceneTool({ mode: "import", offset: 0 }) },
+    ...(selectedScene && !activeReferenceKey ? [
+      { id: "split-scene", title: toolsText.splitScene, run: () => setSceneTool({ mode: "split", offset: editorRef.current?.selectionStart ?? 0 }) },
+      ...(nextMergeScene ? [{ id: "merge-scene", title: toolsText.mergeNext, run: () => setSceneTool({ mode: "merge", offset: 0 }) }] : []),
+    ] : []),
+    ...(selectedNode ? [{ id: "trash-node", title: toolsText.moveTrash, run: () => setSceneTool({ mode: "trash", offset: 0 }) }] : []),
+    { id: "writing-goals", title: toolsText.goals, run: () => { setShowInspector(true); requestAnimationFrame(() => { const panel = document.querySelector<HTMLDetailsElement>(".writing-goals"); if (panel) { panel.open = true; panel.querySelector("input")?.focus(); } }); } },
+    { id: "manuscript-trash", title: toolsText.manuscriptTrash, run: () => setSceneTool({ mode: "restore", offset: 0 }) },
+  ] : [];
   const paletteItems: PaletteItem[] = paletteMode === "files"
-    ? (project?.nodes ?? []).map((node) => ({ id: node.id, title: node.title, detail: node.synopsis, run: () => { void selectNode(node); } }))
+    ? quickOpenDocuments(project?.nodes ?? [], recentDocuments).map(({ node, path }) => ({ id: node.id, title: node.title, detail: [path, node.synopsis].filter(Boolean).join(" · "), run: () => { void selectNode(node); } }))
     : [
+      ...sceneCommands,
+      { id: "recent-projects", title: features.recentProjects, run: () => setRecentProjectsOpen(true) },
+      { id: "reopen-tab", title: features.reopenTab, shortcut: shortcutLabel(shortcuts.reopenTab, isMac), run: () => { void reopenClosedTab(); } },
       ...(selectedScene && !activeReferenceKey ? [{ id: "image", title: commandText.image, shortcut: shortcutLabel(shortcuts.insertImage, isMac), run: () => imageInputRef.current?.click() }] : []),
       { id: "research", title: commandText.research, shortcut: shortcutLabel(shortcuts.openResearch, isMac), run: () => openReference() },
       { id: "close", title: commandText.close, shortcut: shortcutLabel(shortcuts.closeTab, isMac), run: () => { void closeTab(activeTabKey ?? ""); } },
@@ -1188,7 +1304,7 @@ function App() {
         state={{ navigator: showNavigator, inspector: showInspector, focus: focusMode, find: findOpen, research: Boolean(activeReferenceKey) || sideReferences.length > 0 }}
         actions={{
           newProject: () => { void persistSelected().then(() => setNewProjectOpen(true)).catch((reason) => setError(localizedError(reason, locale))); },
-          toggleNavigator, openAnother: () => void handleOpenAnother(), exportProject: () => setExportOpen(true),
+          toggleNavigator, openAnother: () => setRecentProjectsOpen(true), exportProject: () => setExportOpen(true),
           projectSearch: () => setProjectSearchOpen(true), research: () => openReference(), toggleFind: () => setFindOpen((open) => !open),
           toggleFocus: toggleFocusMode, toggleInspector, settings: () => setSettingsOpen(true),
         }} />
@@ -1209,6 +1325,7 @@ function App() {
               move: (direction) => void handleMove(direction), indent: () => void handleIndent(), outdent: () => void handleOutdent(),
               keyboard: (event, index) => void handleTreeKeyboard(event, index),
             }}
+            tools={project ? { importManuscript: () => setSceneTool({ mode: "import", offset: 0 }), openTrash: () => setSceneTool({ mode: "restore", offset: 0 }), importLabel: toolsText.importManuscript, trashLabel: toolsText.manuscriptTrash } : undefined}
             moves={{ up: siblingIndex > 0, down: siblingIndex >= 0 && siblingIndex < siblings.length - 1, indent: canIndent, outdent: canOutdent }} />
         )}
 
@@ -1232,7 +1349,7 @@ function App() {
               {findOpen && <FindPanel key={`${project?.projectPath}:${selectedScene.id}`} content={selectedScene.content} locale={locale}
                 onChange={updateContent} onClose={() => { setFindOpen(false); editorRef.current?.focus(); }}
                 onSelect={(start, end) => { editorRef.current?.focus(); editorRef.current?.setSelectionRange(start, end); }} />}
-              <ManuscriptEditor key={`${project?.projectPath}:${selectedScene.id}`} projectPath={project?.projectPath ?? ""} ref={editorRef}
+              <ManuscriptEditor key={`${project?.projectPath}:${selectedScene.id}`} projectPath={project?.projectPath ?? ""} sceneId={selectedScene.id} ref={editorRef}
                 label={`${selectedScene.title} · ${t("scene")}`} content={selectedScene.content} preferences={writingPreferences}
                 onChange={updateContent} onComposition={(active) => { isComposing.current = active; setCompositionEpoch((value) => value + 1); }}
                 onImages={(files, from, to) => { void insertImages(files, from, to); }}
@@ -1289,7 +1406,11 @@ function App() {
         </div>
 
         {showInspector && (
-          <InspectorPanel locale={locale} t={t} isMac={isMac} width={layout.inspectorWidth}
+          <InspectorPanel itemActions={[
+              ...(selectedScene && !activeReferenceKey ? [{ id: "split", label: toolsText.splitScene, run: () => setSceneTool({ mode: "split", offset: editorRef.current?.selectionStart ?? 0 }) }] : []),
+              ...(selectedScene && nextMergeScene ? [{ id: "merge", label: toolsText.mergeNext, run: () => setSceneTool({ mode: "merge", offset: 0 }) }] : []),
+              ...(selectedNode ? [{ id: "trash", label: toolsText.moveTrash, run: () => setSceneTool({ mode: "trash", offset: 0 }) }] : []),
+            ]} goalsSection={project && <WritingGoals key={project.projectPath} project={project} locale={locale} />} locale={locale} t={t} isMac={isMac} width={layout.inspectorWidth}
             onResize={(inspectorWidth) => setLayout((current) => ({ ...current, inspectorWidth }))}
             image={selectedImage && selectedScene && selectedImage.sceneId === selectedScene.id ? selectedImage : null}
             altDraft={imageAltDraft} onAltDraftChange={setImageAltDraft} onAltCommit={commitImageAlt}
@@ -1301,6 +1422,8 @@ function App() {
         )}
       </div>
 
+      {sceneTool && project && <SceneToolsDialog mode={sceneTool.mode} project={project} selected={selectedNode} nextScene={nextMergeScene} offset={sceneTool.offset} locale={locale} onApply={performSceneOperation} onClose={() => setSceneTool(null)} />}
+      {recentProjectsOpen && <RecentProjectsDialog locale={locale} onOpen={openRecentProject} onLocate={locateProject} onClose={() => setRecentProjectsOpen(false)} />}
       {newProjectOpen && <NewProjectDialog locale={locale} onClose={() => setNewProjectOpen(false)} onCreated={(next) => { acceptProject(next); setNewProjectOpen(false); }} />}
       {projectSearchOpen && project && <Suspense fallback={<div className="dialog-backdrop" role="status"><span>{t("working")}</span></div>}><ProjectSearchDialog project={project} locale={locale} onNavigate={navigateSearchResult} onApply={runReplacement} onUndo={undoReplacement} canUndo={batchUndo?.path === project.projectPath && !!batchUndo.changes.length} onRestore={async (journalId, sceneId) => {
         if (historyBusyRef.current) throw new Error("BATCH_BUSY");

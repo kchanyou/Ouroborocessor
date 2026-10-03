@@ -13,3 +13,4 @@ coverage/
 
 # Local tooling and generated files
 src-tauri/gen/schemas/
+.claude/
