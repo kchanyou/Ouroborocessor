@@ -14,7 +14,9 @@ export type IconName =
   | "indent"
   | "import"
   | "inspector"
+  | "link"
   | "outdent"
+  | "refresh"
   | "search"
   | "searchAll"
   | "settings"
@@ -45,7 +47,9 @@ const paths: Record<IconName, ReactNode> = {
   indent: <path d="M4 6h9M4 10h9M4 14h5M4 18h5m5-6 4 3-4 3" />,
   import: <path d="M12 4v10m-4-4 4 4 4-4M5 14v5h14v-5" />,
   inspector: <path d="M4 5h16v14H4V5Zm11 0v14M17.5 9h.01M17.5 12h.01" />,
+  link: <path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" />,
   outdent: <path d="M4 6h9M4 10h9M8 14h5M8 18h5m-9-3 4-3v6Z" />,
+  refresh: <path d="M18.5 12a6.5 6.5 0 1 1-1.9-4.6M18.5 4.5v3.5H15" />,
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="5.5" />

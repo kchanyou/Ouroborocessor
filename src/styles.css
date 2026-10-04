@@ -1441,14 +1441,6 @@ html[data-motion="reduce"] *::after {
 .resource-list button { width: 100%; text-align: start; overflow-wrap: anywhere; }
 .resource-description { white-space: pre-wrap; overflow-wrap: anywhere; }
 .resource-panel dd { margin-inline-start: 0; overflow-wrap: anywhere; }
-.resource-links { min-width: 0; max-width: 100%; }
-.resource-links details { max-height: 180px; overflow: auto; }
-.resource-links button { min-height: 36px; margin: 2px; overflow-wrap: anywhere; }
-.resource-links summary { cursor: pointer; min-height: 28px; }
-.resource-links p { white-space: normal; }
-.resource-suggestions { display: flex; flex-wrap: wrap; max-height: 120px; overflow: auto; gap: 4px; }
-.resource-suggestions button[aria-pressed="true"] { outline: 2px solid var(--accent); }
-.editor-status:has(.resource-links) { flex-wrap: wrap; }
 .resource-backlinks { border-top: 1px solid var(--line); margin-top: 16px; }
 .resource-backlinks ol { padding-inline-start: 20px; }
 .resource-backlinks li button { display: grid; gap: 4px; width: 100%; text-align: start; padding: 8px; margin-block: 4px; }

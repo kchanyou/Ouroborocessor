@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { AppIcon } from "./AppIcon";
 import type { Locale } from "./i18n";
 import type { ResourceCard } from "./types";
+import { resourceText } from "./resourceI18n";
 import { listResourceCards } from "./tauriApi";
 import type { EditorPort } from "./ManuscriptEditor";
-import { parseResourceLinks, resolveResourceLink, resourceLinkText, resourceQuery, suggestResources } from "./resourceLinks";
+import { parseResourceLinks, resolveResourceLink, type ResourceLink, resourceLinkText, resourceQuery, suggestResources } from "./resourceLinks";
 
 export const linkText = {
-  ko: { title: "연결 자료", help: "[[ 뒤에 이름을 입력하고 ↑↓로 고른 뒤 Enter로 연결해요. Esc로 닫아요. 원문에는 자료 ID가 함께 저장돼요.", missing: "자료가 없거나 이름이 겹쳐요.", error: "자료를 불러오지 못했어요.", refresh: "자료 새로고침", bind: "ID 연결", empty: "일치하는 자료가 없어요." },
-  en: { title: "Linked research", help: "Type [[ and a name, choose with ↑↓, then press Enter to link. Esc closes the list. The research ID is saved in the text.", missing: "Research not found, or the name matches more than one.", error: "Could not load research.", refresh: "Refresh research", bind: "Bind ID", empty: "No matching research." },
-  es: { title: "Referencias vinculadas", help: "Escribe [[ y un nombre, elige con ↑↓ y pulsa Enter para vincular. Esc cierra la lista. El texto guarda el ID de la referencia.", missing: "No se encontró la referencia o el nombre está repetido.", error: "No se pudieron cargar las referencias.", refresh: "Actualizar referencias", bind: "Vincular ID", empty: "No hay coincidencias." },
-  ja: { title: "リンク資料", help: "[[ に続けて名前を入力し、↑↓で選んでEnterでリンクします。Escで閉じます。本文には資料IDも保存されます。", missing: "資料が見つからないか、名前が重複しています。", error: "資料を読み込めませんでした。", refresh: "資料を再読み込み", bind: "IDで接続", empty: "一致する資料はありません。" },
-  zh: { title: "关联资料", help: "输入 [[ 和名称，用 ↑↓ 选择后按 Enter 关联。按 Esc 关闭。正文中会同时保存资料 ID。", missing: "资料不存在，或名称重复。", error: "无法加载资料。", refresh: "刷新资料", bind: "绑定 ID", empty: "没有匹配的资料。" },
+  ko: { title: "레퍼런스", help: "본문에 [[와 이름을 입력하면 레퍼런스를 넣을 수 있어요. ↑↓로 고르고 Enter를 누르세요.", none: "이 원고에 넣은 레퍼런스가 없어요.", missing: "레퍼런스가 없거나 이름이 겹쳐요.", error: "레퍼런스를 불러오지 못했어요.", refresh: "레퍼런스 새로고침", bind: "ID 연결", bindHint: "이름이 바뀌어도 연결이 끊기지 않게 레퍼런스 ID를 함께 저장해요.", empty: "일치하는 레퍼런스가 없어요.", count: "{count}곳" },
+  en: { title: "Linked research", help: "Type [[ and a name in the text to add a link. Choose with ↑↓, then press Enter.", none: "No research is linked in this document.", missing: "Research not found, or the name matches more than one.", error: "Could not load research.", refresh: "Refresh research", bind: "Bind ID", bindHint: "Saves the research ID in the text so the link survives a rename.", empty: "No matching research.", count: "{count} places" },
+  es: { title: "Referencias vinculadas", help: "Escribe [[ y un nombre en el texto para añadir una referencia. Elige con ↑↓ y pulsa Enter.", none: "Este documento no tiene referencias.", missing: "No se encontró la referencia o el nombre está repetido.", error: "No se pudieron cargar las referencias.", refresh: "Actualizar referencias", bind: "Vincular ID", bindHint: "Guarda el ID de la referencia en el texto para que el vínculo siga funcionando si cambia el nombre.", empty: "No hay coincidencias.", count: "{count} lugares" },
+  ja: { title: "リンク資料", help: "本文に [[ と名前を入力するとリンクできます。↑↓で選んでEnterを押してください。", none: "この原稿にリンクした資料はありません。", missing: "資料が見つからないか、名前が重複しています。", error: "資料を読み込めませんでした。", refresh: "資料を再読み込み", bind: "IDで接続", bindHint: "資料IDを本文に保存し、名前を変えてもリンクが切れないようにします。", empty: "一致する資料はありません。", count: "{count}か所" },
+  zh: { title: "关联资料", help: "在正文中输入 [[ 和名称即可关联。用 ↑↓ 选择后按 Enter。", none: "此文稿没有关联资料。", missing: "资料不存在，或名称重复。", error: "无法加载资料。", refresh: "刷新资料", bind: "绑定 ID", bindHint: "在正文中保存资料 ID，改名后关联也不会失效。", empty: "没有匹配的资料。", count: "{count}处" },
 };
 
 export function ResourceLinks({ projectPath, content, editor, locale, onChange, onOpen }: {
@@ -23,7 +25,18 @@ export function ResourceLinks({ projectPath, content, editor, locale, onChange, 
   const [refresh, setRefresh] = useState(0);
   const [query, setQuery] = useState<ReturnType<typeof resourceQuery>>(null);
   const [active, setActive] = useState(0);
+  const [open, setOpen] = useState(false);
   const composing = useRef(false);
+  const root = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const popoverId = useId();
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => (root.current?.querySelector<HTMLElement>(".reference-list button") ?? root.current?.querySelector<HTMLElement>(".reference-popover button"))?.focus());
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false); };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [open]);
   useEffect(() => {
     let live = true;
     setCards([]); setError(false);
@@ -76,23 +89,59 @@ export function ResourceLinks({ projectPath, content, editor, locale, onChange, 
     return () => element?.removeEventListener("keydown", key);
   });
   const normalizedContent = content.replace(/\r\n?/g, "\n");
-  const links = parseResourceLinks(normalizedContent);
-  return <section className="resource-links" aria-label={t.title}>
-    <details><summary>{t.title} ({links.length})</summary><p>{t.help}</p>
-      <button type="button" onClick={() => setRefresh((v) => v + 1)}>{t.refresh}</button>
-      {links.map((link) => {
-        const matches = resolveResourceLink(link, cards);
-        return <div key={link.start}>{matches.length === 1 ? <>
-          <button type="button" onClick={() => onOpen(matches[0])}>{matches[0].name}</button>
-          {!link.id && <button type="button" onClick={() => insert(matches[0], { ...link, query: "" })}>{t.bind}</button>}
-        </> : <span>{link.label} — {t.missing}</span>}</div>;
-      })}
-    </details>
-    {error && <p role="alert">{t.error}</p>}
+  const entries = referenceEntries(parseResourceLinks(normalizedContent), cards);
+  const kinds = resourceText[locale];
+  function close(returnFocus = true) {
+    setOpen(false);
+    if (returnFocus) trigger.current?.focus();
+  }
+  return <section className="resource-links" ref={root}>
+    <button type="button" ref={trigger} className="reference-trigger" aria-expanded={open} aria-controls={popoverId}
+      onClick={() => setOpen((value) => !value)}>
+      <AppIcon name="link" /><span>{t.title}</span><span className="reference-count">{entries.length}</span>
+    </button>
+    <div id={popoverId} className="reference-popover" role="dialog" aria-label={t.title} hidden={!open}
+      onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}>
+      <header>
+        <strong>{t.title}</strong>
+        <button type="button" className="reference-icon-button" aria-label={t.refresh} title={t.refresh} onClick={() => setRefresh((v) => v + 1)}><AppIcon name="refresh" /></button>
+      </header>
+      {error && <p className="reference-note" role="alert">{t.error}</p>}
+      {entries.length ? <ul className="reference-list">
+        {entries.map((entry) => <li key={entry.key}>
+          {entry.card ? <>
+            <button type="button" className="reference-item" onClick={() => { onOpen(entry.card!); close(false); }}>
+              <span>{entry.card.name}</span>
+              <small>{kinds[entry.card.kind]}{entry.count > 1 && ` · ${t.count.replace("{count}", String(entry.count))}`}</small>
+            </button>
+            {entry.unbound && <button type="button" className="reference-bind" title={t.bindHint}
+              onClick={() => insert(entry.card!, { ...entry.unbound!, query: "" })}>{t.bind}</button>}
+          </> : <span className="reference-item is-missing"><span>{entry.label}</span><small>{t.missing}</small></span>}
+        </li>)}
+      </ul> : <p className="reference-note">{t.none}</p>}
+      <p className="reference-help">{t.help}</p>
+    </div>
+    {error && !open && <p className="reference-error" role="alert">{t.error}</p>}
     {query && <div className="resource-suggestions" role="group" aria-label={t.title}>
       <span className="sr-only" role="status">{suggestions[active % Math.max(1, suggestions.length)]?.name ?? t.empty}</span>
       {!suggestions.length && <span>{t.empty}</span>}
       {suggestions.map((card, i) => <button type="button" key={card.id} aria-pressed={active % suggestions.length === i} onClick={() => insert(card)}>{card.name}</button>)}
     </div>}
   </section>;
+}
+
+type ReferenceEntry = { key: string; label: string; count: number; card?: ResourceCard; unbound?: ResourceLink };
+
+/** One row per card however often it is linked; unresolved links stay separate so each can be fixed. */
+function referenceEntries(links: ResourceLink[], cards: ResourceCard[]) {
+  const entries: ReferenceEntry[] = [];
+  for (const link of links) {
+    const matches = resolveResourceLink(link, cards);
+    if (matches.length !== 1) { entries.push({ key: `missing:${link.start}`, label: link.label, count: 1 }); continue; }
+    const card = matches[0];
+    const entry = entries.find((item) => item.card?.id === card.id);
+    if (entry) { entry.count += 1; entry.unbound ??= link.id ? undefined : link; }
+    else entries.push({ key: card.id, label: card.name, count: 1, card, unbound: link.id ? undefined : link });
+  }
+  return entries;
 }

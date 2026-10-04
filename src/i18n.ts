@@ -33,7 +33,7 @@ const ko = {
   includeDescendants: "하위 폴더 내용 포함",
   overviewHint: "원고를 열면 메모와 상태를 고칠 수 있어요.",
   noSynopsis: "메모 없음",
-  referencePanel: "자료",
+  referencePanel: "레퍼런스",
   exportFormat: "출력 형식",
   backupFormat: "Markdown + 프로젝트 사본",
   exportScope: "출력 범위",

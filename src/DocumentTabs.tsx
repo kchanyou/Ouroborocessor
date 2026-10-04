@@ -7,7 +7,7 @@ export type ReferenceTab = { key: string; title: string };
 export type PaneId = "main" | "side";
 
 export const tabText = {
-  ko: { title: "열린 탭", close: "탭 닫기", resources: "자료", imageError: "이미지를 추가하지 못했어요. PNG·JPEG·GIF·WebP, 최대 10MB까지 가능해요.", openSide: "옆에 열기", moveMain: "주 창으로 옮기기", sidePane: "옆 창", dropSide: "옆에 열기", dropMain: "주 창으로 옮기기", sideImages: "이미지는 주 창에서 추가할 수 있어요." },
+  ko: { title: "열린 탭", close: "탭 닫기", resources: "레퍼런스", imageError: "이미지를 추가하지 못했어요. PNG·JPEG·GIF·WebP, 최대 10MB까지 가능해요.", openSide: "옆에 열기", moveMain: "주 창으로 옮기기", sidePane: "옆 창", dropSide: "옆에 열기", dropMain: "주 창으로 옮기기", sideImages: "이미지는 주 창에서 추가할 수 있어요." },
   en: { title: "Open tabs", close: "Close tab", resources: "Research", imageError: "Could not add the image. Use PNG, JPEG, GIF, or WebP up to 10 MB.", openSide: "Open to the side", moveMain: "Move to main pane", sidePane: "Side pane", dropSide: "Open to the side", dropMain: "Move to main pane", sideImages: "Add images from the main pane." },
   es: { title: "Pestañas abiertas", close: "Cerrar pestaña", resources: "Referencias", imageError: "No se pudo añadir la imagen. Usa PNG, JPEG, GIF o WebP de hasta 10 MB.", openSide: "Abrir al lado", moveMain: "Mover al panel principal", sidePane: "Panel lateral", dropSide: "Abrir al lado", dropMain: "Mover al panel principal", sideImages: "Añade imágenes desde el panel principal." },
   ja: { title: "開いているタブ", close: "タブを閉じる", resources: "資料", imageError: "画像を追加できませんでした。PNG・JPEG・GIF・WebP（最大10 MB）に対応しています。", openSide: "横に開く", moveMain: "メインに移動", sidePane: "サイドペイン", dropSide: "横に開く", dropMain: "メインに移動", sideImages: "画像はメインペインで追加できます。" },

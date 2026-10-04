@@ -1254,7 +1254,7 @@ function App() {
     error: t("saveError"),
   };
   const commandText = ({
-    ko: { image: "이미지 추가", research: "자료 열기", close: "현재 탭 닫기", next: "다음 탭", previous: "이전 탭", sidebar: "원고 목록 보기/숨기기", settings: "설정 열기" },
+    ko: { image: "이미지 추가", research: "레퍼런스 열기", close: "현재 탭 닫기", next: "다음 탭", previous: "이전 탭", sidebar: "원고 목록 보기/숨기기", settings: "설정 열기" },
     en: { image: "Add image", research: "Open research", close: "Close current tab", next: "Next tab", previous: "Previous tab", sidebar: "Show or hide outline", settings: "Open settings" },
     es: { image: "Añadir imagen", research: "Abrir referencias", close: "Cerrar pestaña actual", next: "Pestaña siguiente", previous: "Pestaña anterior", sidebar: "Mostrar u ocultar índice", settings: "Abrir ajustes" },
     ja: { image: "画像を追加", research: "資料を開く", close: "現在のタブを閉じる", next: "次のタブ", previous: "前のタブ", sidebar: "原稿リストの表示を切り替え", settings: "設定を開く" },

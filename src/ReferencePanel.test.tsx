@@ -12,7 +12,7 @@ const project: ProjectSnapshot = {
 
 it("opens research as a document tab without the former pinned manuscript view", () => {
   const html = renderToStaticMarkup(<ReferencePanel project={project} locale="ko" card={null} onOpenCard={() => {}} />);
-  expect(html).toContain("자료 카드");
+  expect(html).toContain("레퍼런스 카드");
   expect(html).not.toContain("Private body");
   expect(html).not.toContain("textarea");
 });

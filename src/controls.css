@@ -6,8 +6,7 @@
 .image-inspector-actions button,
 .error-banner button,
 .resource-actions button,
-.overview-controls > button,
-.resource-links button {
+.overview-controls > button {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
@@ -31,8 +30,7 @@
 .image-inspector-actions button:hover:not(:disabled),
 .error-banner button:hover:not(:disabled),
 .resource-actions button:hover:not(:disabled),
-.overview-controls > button:hover:not(:disabled),
-.resource-links button:hover:not(:disabled) {
+.overview-controls > button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ink) 5%, var(--control));
 }
 

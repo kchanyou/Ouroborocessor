@@ -45,7 +45,7 @@ export const writingToolsText: Record<Locale, typeof en> = {
     splitScene: "커서 위치에서 나누기",
     mergeNext: "다음 원고와 합치기",
     splitTitle: "새 원고 제목",
-    splitHint: "커서 뒤의 내용이 새 원고로 옮겨져요. 이미지나 자료 링크 중간에서는 나눌 수 없어요.",
+    splitHint: "커서 뒤의 내용이 새 원고로 옮겨져요. 이미지나 레퍼런스 링크 중간에서는 나눌 수 없어요.",
     mergeHint: "두 원고 사이에 빈 줄을 넣어 하나로 합쳐요. 다음 원고는 메모와 함께 휴지통으로 옮겨지니 나중에 복원할 수 있어요.",
     moveTrash: "휴지통으로 옮기기",
     manuscriptTrash: "원고 휴지통",
@@ -67,7 +67,7 @@ export const writingToolsText: Record<Locale, typeof en> = {
     dailyGoal: "하루 목표",
     projectGoal: "작품 목표",
     includeSpaces: "공백도 글자 수에 포함",
-    goalHint: "목표는 글자 수로 계산해요. 오늘 진행량은 이 기기에서 오늘 늘어난 글자 수이고, 글을 지우면 그만큼 줄어요. 가져오기, 복원, 나누기, 합치기는 포함하지 않아요. 줄바꿈과 이미지는 세지 않고, 자료 링크는 화면에 보이는 이름만 글자 수에 들어가요.",
+    goalHint: "목표는 글자 수로 계산해요. 오늘 진행량은 이 기기에서 오늘 늘어난 글자 수이고, 글을 지우면 그만큼 줄어요. 가져오기, 복원, 나누기, 합치기는 포함하지 않아요. 줄바꿈과 이미지는 세지 않고, 레퍼런스 링크는 화면에 보이는 이름만 글자 수에 들어가요.",
   },
   es: {
     importManuscript: "Importar manuscrito",
