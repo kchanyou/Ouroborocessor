@@ -69,14 +69,24 @@ export function exportProject(projectPath: string, destination: string) {
   return invoke<string>("export_project", { projectPath, destination });
 }
 
-export function exportDocx(
+export type DocumentFormat = "docx" | "hwpx" | "odt" | "html" | "txt";
+export type PaperSize = "a4" | "letter";
+export type MarginPreset = "narrow" | "normal" | "wide";
+
+export function exportDocument(
   projectPath: string,
   destination: string,
   rootId: string | null,
-  paperSize: "a4" | "letter",
-  marginPreset: "narrow" | "normal" | "wide",
+  format: DocumentFormat,
+  paperSize: PaperSize,
+  marginPreset: MarginPreset,
 ) {
-  return invoke<string>("export_docx", { projectPath, destination, rootId, paperSize, marginPreset });
+  return invoke<string>("export_document", { projectPath, destination, rootId, format, paperSize, marginPreset });
+}
+
+/** Opens a print preview window; the system print panel saves it as PDF. */
+export function printManuscript(projectPath: string, rootId: string | null, paperSize: PaperSize, marginPreset: MarginPreset, windowTitle: string) {
+  return invoke<void>("print_manuscript", { projectPath, rootId, paperSize, marginPreset, windowTitle });
 }
 
 let initialProject: Promise<ProjectSnapshot> | undefined;

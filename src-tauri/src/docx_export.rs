@@ -1,119 +1,25 @@
-use crate::{ManuscriptNode, NodeKind, ProjectSnapshot};
-use std::{
-    collections::HashMap,
-    io::{Cursor, Write},
-    path::Path,
-};
+//! DOCX (WordprocessingML) writer. Content comes from `document_export::blocks`.
 
-pub(crate) fn ordered_scope<'a>(
-    project: &'a ProjectSnapshot,
-    root: Option<&str>,
-) -> Result<Vec<(&'a ManuscriptNode, usize)>, String> {
-    let mut children: HashMap<Option<&str>, Vec<&ManuscriptNode>> = HashMap::new();
-    for node in &project.nodes {
-        children
-            .entry(node.parent_id.as_deref())
-            .or_default()
-            .push(node);
-    }
-    let roots = match root {
-        Some(id) => vec![project
-            .nodes
-            .iter()
-            .find(|n| n.id == id)
-            .ok_or("EXPORT_SCOPE_MISSING")?],
-        None => children.get(&None).cloned().unwrap_or_default(),
-    };
-    let mut stack: Vec<_> = roots.into_iter().rev().map(|n| (n, 1)).collect();
-    let mut ordered = Vec::new();
-    while let Some((node, depth)) = stack.pop() {
-        ordered.push((node, depth));
-        if let Some(items) = children.get(&Some(node.id.as_str())) {
-            stack.extend(items.iter().rev().map(|n| (*n, depth + 1)));
-        }
-    }
-    Ok(ordered)
-}
+use crate::document_export::{blocks, xml_escape as escape, Block, Image};
+use crate::ProjectSnapshot;
+use std::io::{Cursor, Write};
 
-fn escape(text: &str) -> Result<String, String> {
-    if text.chars().any(|c| !matches!(c, '\t' | '\n' | '\r' | '\u{20}'..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..='\u{10ffff}')) {
-        return Err("EXPORT_INVALID_CHARACTER".into());
-    }
-    Ok(text
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;"))
-}
-
-fn paragraph(text: &str, style: &str) -> Result<String, String> {
+fn paragraph(text: &str, style: &str) -> String {
     let runs = text
         .split('\t')
         .map(|part| {
-            escape(part).map(|s| format!("<w:r><w:t xml:space=\"preserve\">{s}</w:t></w:r>"))
+            format!(
+                "<w:r><w:t xml:space=\"preserve\">{}</w:t></w:r>",
+                escape(part)
+            )
         })
-        .collect::<Result<Vec<_>, _>>()?
+        .collect::<Vec<_>>()
         .join("<w:r><w:tab/></w:r>");
-    Ok(format!(
-        "<w:p><w:pPr><w:pStyle w:val=\"{style}\"/></w:pPr>{runs}</w:p>"
-    ))
+    format!("<w:p><w:pPr><w:pStyle w:val=\"{style}\"/></w:pPr>{runs}</w:p>")
 }
 
-struct ImageAsset {
-    name: String,
-    bytes: Vec<u8>,
-    relationship: usize,
-}
-
-fn dimensions(bytes: &[u8], extension: &str) -> Option<(u32, u32)> {
-    match extension {
-        "png" if bytes.len() >= 24 => Some((
-            u32::from_be_bytes(bytes[16..20].try_into().ok()?),
-            u32::from_be_bytes(bytes[20..24].try_into().ok()?),
-        )),
-        "gif" if bytes.len() >= 10 => Some((
-            u16::from_le_bytes(bytes[6..8].try_into().ok()?) as u32,
-            u16::from_le_bytes(bytes[8..10].try_into().ok()?) as u32,
-        )),
-        "jpg" => {
-            let mut cursor = 2usize;
-            while cursor + 9 < bytes.len() {
-                if bytes[cursor] != 0xff {
-                    cursor += 1;
-                    continue;
-                }
-                let marker = bytes[cursor + 1];
-                if marker == 0xd8 || marker == 0xd9 {
-                    cursor += 2;
-                    continue;
-                }
-                let length = u16::from_be_bytes([bytes[cursor + 2], bytes[cursor + 3]]) as usize;
-                if length < 2 || cursor + 2 + length > bytes.len() {
-                    break;
-                }
-                if matches!(marker, 0xc0..=0xc3 | 0xc5..=0xc7 | 0xc9..=0xcb | 0xcd..=0xcf) {
-                    return Some((
-                        u16::from_be_bytes([bytes[cursor + 7], bytes[cursor + 8]]) as u32,
-                        u16::from_be_bytes([bytes[cursor + 5], bytes[cursor + 6]]) as u32,
-                    ));
-                }
-                cursor += 2 + length;
-            }
-            None
-        }
-        "webp" if bytes.len() >= 30 && &bytes[12..16] == b"VP8X" => {
-            let width = 1 + u32::from_le_bytes([bytes[24], bytes[25], bytes[26], 0]);
-            let height = 1 + u32::from_le_bytes([bytes[27], bytes[28], bytes[29], 0]);
-            Some((width, height))
-        }
-        _ => None,
-    }
-    .filter(|(width, height)| *width > 0 && *height > 0)
-}
-
-fn extent(bytes: &[u8], extension: &str, max_width: u64, max_height: u64) -> (u64, u64) {
-    let (width, height) = dimensions(bytes, extension).unwrap_or((4, 3));
+fn extent(image: &Image, max_width: u64, max_height: u64) -> (u64, u64) {
+    let (width, height) = image.size.unwrap_or((4, 3));
     let scale = (max_width as f64 / width as f64)
         .min(max_height as f64 / height as f64)
         .min(1_200_000f64 / width.min(height) as f64);
@@ -124,97 +30,18 @@ fn extent(bytes: &[u8], extension: &str, max_width: u64, max_height: u64) -> (u6
 }
 
 fn image_paragraph(
-    name: &str,
-    alt: &str,
-    bytes: &[u8],
+    image: &Image,
     relationship: usize,
     document_id: usize,
     max_width: u64,
     max_height: u64,
-) -> Result<String, String> {
-    let extension = name
-        .rsplit_once('.')
-        .map(|(_, ext)| ext)
-        .ok_or("IMAGE_FORMAT")?;
-    let (cx, cy) = extent(bytes, extension, max_width, max_height);
-    let name = escape(name)?;
-    let alt = escape(alt)?;
-    Ok(format!(
+) -> String {
+    let (cx, cy) = extent(image, max_width, max_height);
+    let name = escape(&image.name);
+    let alt = escape(&image.alt);
+    format!(
         r#"<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="120" w:after="120"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{document_id}" name="{name}" descr="{alt}"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="{name}" descr="{alt}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId{relationship}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"#
-    ))
-}
-
-fn append_line(
-    project: &ProjectSnapshot,
-    line: &str,
-    body: &mut String,
-    assets: &mut Vec<ImageAsset>,
-    document_id: &mut usize,
-    max_width: u64,
-    max_height: u64,
-) -> Result<(), String> {
-    let mut scan = 0usize;
-    let mut emitted = 0usize;
-    let mut found = false;
-    while let Some(relative_start) = line[scan..].find("![") {
-        let start = scan + relative_start;
-        let Some(alt_end_relative) = line[start + 2..].find("](") else {
-            break;
-        };
-        let alt_end = start + 2 + alt_end_relative;
-        let target_start = alt_end + 2;
-        let Some(target_end_relative) = line[target_start..].find(')') else {
-            break;
-        };
-        let target_end = target_start + target_end_relative;
-        let Some(name) = line[target_start..target_end].strip_prefix("images/") else {
-            scan = target_end + 1;
-            continue;
-        };
-        if name.contains('/') || !name.starts_with("image-") {
-            scan = target_end + 1;
-            continue;
-        }
-        if start > emitted {
-            body.push_str(&paragraph(&line[emitted..start], "Normal")?);
-        }
-        let relationship = if let Some(asset) = assets.iter().find(|asset| asset.name == name) {
-            asset.relationship
-        } else {
-            let bytes = crate::images::read(Path::new(&project.project_path), name)?;
-            let relationship = assets.len() + 2;
-            assets.push(ImageAsset {
-                name: name.into(),
-                bytes,
-                relationship,
-            });
-            relationship
-        };
-        let bytes = &assets
-            .iter()
-            .find(|asset| asset.name == name)
-            .unwrap()
-            .bytes;
-        body.push_str(&image_paragraph(
-            name,
-            &line[start + 2..alt_end],
-            bytes,
-            relationship,
-            *document_id,
-            max_width,
-            max_height,
-        )?);
-        *document_id += 1;
-        found = true;
-        emitted = target_end + 1;
-        scan = emitted;
-    }
-    if !found {
-        body.push_str(&paragraph(line, "Normal")?);
-    } else if emitted < line.len() {
-        body.push_str(&paragraph(&line[emitted..], "Normal")?);
-    }
-    Ok(())
+    )
 }
 
 fn page_layout(paper_size: &str, margin_preset: &str) -> Result<(u32, u32, u32), String> {
@@ -241,40 +68,34 @@ pub(crate) fn build(
     let (page_width, page_height, margin) = page_layout(paper_size, margin_preset)?;
     let max_image_width = u64::from(page_width - margin * 2) * 635;
     let max_image_height = u64::from(page_height - margin * 2) * 635;
-    let ordered = ordered_scope(project, root)?;
-    let title = root
-        .and_then(|id| project.nodes.iter().find(|n| n.id == id))
-        .map(|n| n.title.as_str())
-        .unwrap_or(&project.title);
-    let mut body = paragraph(&title.replace(['\r', '\n'], " "), "Title")?;
-    let mut assets = Vec::new();
+    let mut body = String::new();
+    // (name, relationship id, bytes) in first-use order; repeated pictures share one part.
+    let mut assets: Vec<(String, usize, std::rc::Rc<Vec<u8>>)> = Vec::new();
     let mut document_id = 1usize;
-    for (node, depth) in ordered {
-        if Some(node.id.as_str()) != root {
-            let level = if root.is_some() {
-                depth.saturating_sub(1).max(1)
-            } else {
-                depth
-            };
-            body.push_str(&paragraph(
-                &node.title.replace(['\r', '\n'], " "),
-                &format!("Heading{}", level.min(9)),
-            )?);
-        }
-        if node.kind == NodeKind::Scene {
-            let normalized = crate::resource_links::display_text(&node.content)
-                .replace("\r\n", "\n")
-                .replace('\r', "\n");
-            for line in normalized.split('\n') {
-                append_line(
-                    project,
-                    line,
-                    &mut body,
-                    &mut assets,
-                    &mut document_id,
+    for block in blocks(project, root)? {
+        match block {
+            Block::Title(title) => body.push_str(&paragraph(&title, "Title")),
+            Block::Heading(level, text) => {
+                body.push_str(&paragraph(&text, &format!("Heading{level}")))
+            }
+            Block::Paragraph(text) => body.push_str(&paragraph(&text, "Normal")),
+            Block::Image(image) => {
+                let relationship = match assets.iter().find(|(name, _, _)| *name == image.name) {
+                    Some((_, relationship, _)) => *relationship,
+                    None => {
+                        let relationship = assets.len() + 2;
+                        assets.push((image.name.clone(), relationship, image.bytes.clone()));
+                        relationship
+                    }
+                };
+                body.push_str(&image_paragraph(
+                    &image,
+                    relationship,
+                    document_id,
                     max_image_width,
                     max_image_height,
-                )?;
+                ));
+                document_id += 1;
             }
         }
     }
@@ -289,8 +110,8 @@ pub(crate) fn build(
     let mut relationships = String::from(
         r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>"#,
     );
-    for asset in &assets {
-        relationships.push_str(&format!(r#"<Relationship Id="rId{}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/{}"/>"#, asset.relationship, escape(&asset.name)?));
+    for (name, relationship, _) in &assets {
+        relationships.push_str(&format!(r#"<Relationship Id="rId{relationship}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/{}"/>"#, escape(name)));
     }
     relationships.push_str("</Relationships>");
     let content_types = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="webp" ContentType="image/webp"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>"#;
@@ -315,11 +136,11 @@ pub(crate) fn build(
             .write_all(content.as_bytes())
             .map_err(|e| e.to_string())?;
     }
-    for asset in assets {
+    for (name, _, bytes) in assets {
         archive
-            .start_file(format!("word/media/{}", asset.name), options)
+            .start_file(format!("word/media/{name}"), options)
             .map_err(|e| e.to_string())?;
-        archive.write_all(&asset.bytes).map_err(|e| e.to_string())?;
+        archive.write_all(&bytes).map_err(|e| e.to_string())?;
     }
     Ok(archive.finish().map_err(|e| e.to_string())?.into_inner())
 }

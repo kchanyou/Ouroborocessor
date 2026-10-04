@@ -8,7 +8,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { localeOptions, translate, type Locale } from "./i18n";
+import { localeOptions, translate, type Locale, type MessageKey } from "./i18n";
 import { localizedError, type Translate } from "./appText";
 import { exportScope } from "./exportScope";
 import { type AppPreferences } from "./preferences";
@@ -16,7 +16,11 @@ import { ProjectSceneSaveError } from "./projectSave";
 import {
   chooseFolder,
   createProject,
-  exportDocx,
+  exportDocument,
+  printManuscript,
+  type DocumentFormat,
+  type MarginPreset,
+  type PaperSize,
   exportProject,
 } from "./tauriApi";
 import type { ProjectSnapshot } from "./types";
@@ -87,6 +91,16 @@ export function NewProjectDialog({ locale, onCreated, onClose }: NewProjectDialo
   );
 }
 
+type ExportFormat = "backup" | DocumentFormat | "pdf";
+const exportFormats: ExportFormat[] = ["backup", "docx", "hwpx", "odt", "pdf", "html", "txt"];
+const formatText = {
+  docx: ["formatDocx", "docxDescription"], hwpx: ["formatHwpx", "hwpxDescription"], odt: ["formatOdt", "odtDescription"],
+  pdf: ["formatPdf", "pdfDescription"], html: ["formatHtml", "htmlDescription"], txt: ["formatTxt", "txtDescription"],
+  backup: ["backupFormat", "exportDescription"],
+} as const satisfies Record<ExportFormat, readonly [MessageKey, MessageKey]>;
+/** Formats laid out on pages, so paper size and margins apply. */
+const pagedFormats: ExportFormat[] = ["docx", "hwpx", "odt", "pdf"];
+
 type ExportDialogProps = {
   project: ProjectSnapshot;
   selectedId: string | null;
@@ -101,10 +115,10 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
-  const [format, setFormat] = useState<"backup" | "docx">("backup");
+  const [format, setFormat] = useState<ExportFormat>("backup");
   const [rootId, setRootId] = useState<string | null>(null);
-  const [paperSize, setPaperSize] = useState<"a4" | "letter">("a4");
-  const [marginPreset, setMarginPreset] = useState<"narrow" | "normal" | "wide">("normal");
+  const [paperSize, setPaperSize] = useState<PaperSize>("a4");
+  const [marginPreset, setMarginPreset] = useState<MarginPreset>("normal");
   const scope = useMemo(() => exportScope(project.nodes, rootId), [project.nodes, rootId]);
   const t: Translate = (key, values) => translate(locale, key, values);
 
@@ -120,11 +134,17 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
     setResult("");
     try {
       await persist();
+      if (format === "pdf") {
+        const title = rootId ? project.nodes.find((node) => node.id === rootId)?.title ?? project.title : project.title;
+        await printManuscript(project.projectPath, rootId, paperSize, marginPreset, t("pdfWindowTitle", { title }));
+        setResult(t("pdfOpened"));
+        return;
+      }
       const destination = await chooseFolder(t("exportDestination"));
       if (!destination) return;
-      const output = format === "docx"
-        ? await exportDocx(project.projectPath, destination, rootId, paperSize, marginPreset)
-        : await exportProject(project.projectPath, destination);
+      const output = format === "backup"
+        ? await exportProject(project.projectPath, destination)
+        : await exportDocument(project.projectPath, destination, rootId, format, paperSize, marginPreset);
       setResult(output);
     } catch (reason) {
       if (reason instanceof ProjectSceneSaveError) {
@@ -166,18 +186,18 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
           disabled={busy}
           value={format}
           onChange={(event) => {
-            setFormat(event.target.value as "backup" | "docx");
+            setFormat(event.target.value as ExportFormat);
             setResult("");
             setError("");
           }}
         >
-          <option value="backup">{t("backupFormat")}</option>
-          <option value="docx">DOCX</option>
+          {exportFormats.map((value) => <option key={value} value={value}>{t(formatText[value][0])}</option>)}
         </select>
-        <p id="export-description">{t(format === "docx" ? "docxDescription" : "exportDescription")}</p>
-        <HelpDetails locale={locale}>{t(format === "docx" ? "docxDescriptionDetails" : "exportDescriptionDetails")}</HelpDetails>
+        <p id="export-description">{t(formatText[format][1])}</p>
+        {format === "backup" && <HelpDetails locale={locale}>{t("exportDescriptionDetails")}</HelpDetails>}
+        {pagedFormats.includes(format) && <HelpDetails locale={locale}>{t("documentDescriptionDetails")}</HelpDetails>}
         <p>{t("exportSaveAll")}</p>
-        {format === "docx" && (
+        {format !== "backup" && (
           <>
             <label htmlFor="export-scope">{t("exportScope")}</label>
             <select
@@ -196,13 +216,14 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
                 </option>
               )}
             </select>
+            {pagedFormats.includes(format) && <>
             <label htmlFor="export-paper-size">{t("paperSize")}</label>
             <select
               id="export-paper-size"
               disabled={busy}
               value={paperSize}
               onChange={(event) => {
-                setPaperSize(event.target.value as "a4" | "letter");
+                setPaperSize(event.target.value as PaperSize);
                 setResult("");
               }}
             >
@@ -215,7 +236,7 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
               disabled={busy}
               value={marginPreset}
               onChange={(event) => {
-                setMarginPreset(event.target.value as "narrow" | "normal" | "wide");
+                setMarginPreset(event.target.value as MarginPreset);
                 setResult("");
               }}
             >
@@ -223,6 +244,7 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
               <option value="normal">{t("marginNormal")}</option>
               <option value="wide">{t("marginWide")}</option>
             </select>
+            </>}
             <p>{t("exportSceneCount", { count: scope.filter(({ node }) => node.kind === "scene").length })}</p>
             <ol className="export-outline" aria-label={t("exportOrder")}>
               {scope.map(({ node, depth }) => (
@@ -236,16 +258,16 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
         <div className="dialog-actions">
           <button type="button" disabled={busy} onClick={onClose}>{t("close")}</button>
           <button type="button" className="primary" disabled={busy} onClick={() => void runExport()}>
-            {busy ? t("working") : t("exportStart")}
+            {busy ? t("working") : format === "pdf" ? t("pdfStart") : t("exportStart")}
           </button>
         </div>
         <div role="status">
-          {result && (
+          {result && (format === "pdf" ? <p>{result}</p> : (
             <>
-              <p>{t(format === "docx" ? "docxDone" : "exportDone")}</p>
+              <p>{format === "backup" ? t("exportDone") : t("documentDone", { format: format.toUpperCase() })}</p>
               <code className="export-path">{result}</code>
             </>
-          )}
+          ))}
         </div>
         {error && <p role="alert">{error}</p>}
       </div>

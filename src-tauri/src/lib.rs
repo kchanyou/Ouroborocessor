@@ -7,13 +7,17 @@ use std::{
 };
 use tauri::Manager;
 mod batch_edit;
+mod document_export;
 mod docx_export;
+mod hwpx_export;
 mod images;
+mod odt_export;
 mod recovery;
 mod resource_links;
 mod resources;
 mod scene_operations;
 mod storage;
+mod text_export;
 pub(crate) use storage::{storage_error, write_atomic};
 static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -799,10 +803,11 @@ fn export_project(project_path: String, destination: String) -> Result<String, S
 }
 
 #[tauri::command]
-fn export_docx(
+fn export_document(
     project_path: String,
     destination: String,
     root_id: Option<String>,
+    format: String,
     paper_size: String,
     margin_preset: String,
 ) -> Result<String, String> {
@@ -816,12 +821,72 @@ fn export_docx(
         return Err("EXPORT_DESTINATION".into());
     }
     let project = load_project_from_path(&source)?;
-    let bytes = docx_export::build(&project, root_id.as_deref(), &paper_size, &margin_preset)?;
-    let output = destination.join(timestamp_id("Ouroborocessor-DOCX")?);
+    let root = root_id.as_deref();
+    let page = document_export::Page::new(&paper_size, &margin_preset)?;
+    let (bytes, extension) = match format.as_str() {
+        "docx" => (
+            docx_export::build(&project, root, &paper_size, &margin_preset)?,
+            "docx",
+        ),
+        "hwpx" => (hwpx_export::build(&project, root, &page)?, "hwpx"),
+        "odt" => (odt_export::build(&project, root, &page)?, "odt"),
+        "html" => (text_export::build_html(&project, root, &page)?, "html"),
+        "txt" => (text_export::build_text(&project, root)?, "txt"),
+        _ => return Err("EXPORT_FORMAT".into()),
+    };
+    let output = destination.join(timestamp_id(&format!(
+        "Ouroborocessor-{}",
+        extension.to_uppercase()
+    ))?);
     fs::create_dir(&output).map_err(storage_error)?;
-    let file = output.join("Manuscript.docx");
+    let file = output.join(format!("Manuscript.{extension}"));
     write_atomic(&file, &bytes)?;
     Ok(file.to_string_lossy().into_owned())
+}
+
+/// Opens a preview window with the manuscript laid out for the chosen page and shows the
+/// system print panel, where it can be saved as PDF. Async because creating a window from a
+/// synchronous command can deadlock on Windows.
+#[tauri::command]
+async fn print_manuscript(
+    app: tauri::AppHandle,
+    project_path: String,
+    root_id: Option<String>,
+    paper_size: String,
+    margin_preset: String,
+    window_title: String,
+) -> Result<(), String> {
+    let source = Path::new(&project_path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let project = load_project_from_path(&source)?;
+    let page = document_export::Page::new(&paper_size, &margin_preset)?;
+    let html = String::from_utf8(text_export::build_html(
+        &project,
+        root_id.as_deref(),
+        &page,
+    )?)
+    .map_err(|e| e.to_string())?;
+    let script = format!(
+        "window.__OUROBOROCESSOR_PRINT__ = {};",
+        serde_json::to_string(&html).map_err(|e| e.to_string())?
+    );
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        timestamp_id("print")?,
+        tauri::WebviewUrl::App("print.html".into()),
+    )
+    .title(window_title)
+    .inner_size(820.0, 1000.0)
+    .initialization_script(&script)
+    .on_page_load(|webview, payload| {
+        if payload.event() == tauri::webview::PageLoadEvent::Finished {
+            let _ = webview.print();
+        }
+    })
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn compile_markdown(project: &ProjectSnapshot) -> String {
@@ -1075,7 +1140,8 @@ pub fn run() {
             preserve_conflict_copy,
             undo_project_edit,
             export_project,
-            export_docx,
+            export_document,
+            print_manuscript,
             list_scene_versions,
             restore_scene_version,
             update_node,
@@ -1256,6 +1322,103 @@ mod tests {
     }
 
     #[test]
+    fn every_document_format_keeps_text_pictures_and_page_settings() {
+        use std::io::Read;
+        let temp = tempfile::tempdir().unwrap();
+        let project = create_test_project(&temp);
+        let path = project.project_path.clone();
+        let scene_id = project.nodes[1].id.clone();
+        let png = "89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c020000000b4944415478da6364f80f00010501012718e3660000000049454e44ae426082"
+            .as_bytes().chunks_exact(2).map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()).collect::<Vec<_>>();
+        let image_path = images::save_image(path.clone(), png.clone()).unwrap();
+        save_scene(
+            path.clone(),
+            scene_id.clone(),
+            format!("한국어 <첫> 줄\t탭  두 칸\n![장면 배경]({image_path})\n\n마지막 & 끝"),
+        )
+        .unwrap();
+        let destination = tempfile::tempdir().unwrap();
+        let export = |format: &str| {
+            let file = export_document(
+                path.clone(),
+                destination.path().to_string_lossy().into_owned(),
+                None,
+                format.into(),
+                "letter".into(),
+                "narrow".into(),
+            )
+            .unwrap();
+            assert!(file.ends_with(&format!("Manuscript.{format}")));
+            fs::read(file).unwrap()
+        };
+        let entry = |bytes: &[u8], name: &str| {
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
+            let mut content = Vec::new();
+            archive
+                .by_name(name)
+                .unwrap()
+                .read_to_end(&mut content)
+                .unwrap();
+            content
+        };
+        let first_entry = |bytes: &[u8]| {
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
+            let file = archive.by_index(0).unwrap();
+            (file.name().to_string(), file.compression())
+        };
+
+        let text = String::from_utf8(export("txt")).unwrap();
+        assert!(text.contains("한국어 <첫> 줄\t탭  두 칸\n[장면 배경]\n\n마지막 & 끝"));
+
+        let html = String::from_utf8(export("html")).unwrap();
+        assert!(html.contains("한국어 &lt;첫&gt; 줄") && html.contains("마지막 &amp; 끝"));
+        assert!(html.contains("data:image/png;base64,") && html.contains("alt=\"장면 배경\""));
+        assert!(html.contains("size: 215.9mm 279.4mm; margin: 12.7mm"));
+
+        let odt = export("odt");
+        assert_eq!(
+            first_entry(&odt),
+            ("mimetype".to_string(), zip::CompressionMethod::Stored)
+        );
+        let content = String::from_utf8(entry(&odt, "content.xml")).unwrap();
+        assert!(content.contains("한국어 &lt;첫&gt; 줄<text:tab/>탭 <text:s text:c=\"1\"/>두 칸"));
+        assert!(content.contains("<svg:desc>장면 배경</svg:desc>"));
+        let name = image_path.trim_start_matches("images/");
+        assert_eq!(entry(&odt, &format!("Pictures/{name}")), png);
+        assert!(String::from_utf8(entry(&odt, "styles.xml"))
+            .unwrap()
+            .contains("fo:page-width=\"215.9mm\""));
+
+        let hwpx = export("hwpx");
+        assert_eq!(
+            first_entry(&hwpx),
+            ("mimetype".to_string(), zip::CompressionMethod::Stored)
+        );
+        let section = String::from_utf8(entry(&hwpx, "Contents/section0.xml")).unwrap();
+        assert!(section.contains("<hp:t>한국어 &lt;첫&gt; 줄<hp:tab/>탭  두 칸</hp:t>"));
+        assert!(
+            section.contains("binaryItemIDRef=\"BIN0001\"") && section.contains("width=\"61200\"")
+        );
+        assert_eq!(entry(&hwpx, "BinData/BIN0001.png"), png);
+        assert!(String::from_utf8(entry(&hwpx, "Contents/content.hpf"))
+            .unwrap()
+            .contains("href=\"BinData/BIN0001.png\""));
+
+        assert_eq!(
+            export_document(
+                path.clone(),
+                destination.path().to_string_lossy().into_owned(),
+                None,
+                "rtf".into(),
+                "a4".into(),
+                "normal".into()
+            )
+            .unwrap_err(),
+            "EXPORT_FORMAT"
+        );
+    }
+
+    #[test]
     fn docx_export_embeds_manuscript_images_with_accessible_description() {
         use std::io::Read;
         let temp = tempfile::tempdir().unwrap();
@@ -1326,7 +1489,7 @@ mod tests {
             "Last".into(),
         )
         .unwrap();
-        let scoped = docx_export::ordered_scope(&next, Some(&group)).unwrap();
+        let scoped = document_export::ordered_scope(&next, Some(&group)).unwrap();
         assert_eq!(
             scoped
                 .iter()
@@ -1334,27 +1497,30 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["1부", "첫 장면", "Last"]
         );
-        assert!(export_docx(
+        assert!(export_document(
             path.clone(),
             path.clone(),
             None,
+            "docx".into(),
             "a4".into(),
             "normal".into()
         )
         .is_err());
         let destination = temp.path().to_string_lossy().into_owned();
-        let first = export_docx(
+        let first = export_document(
             path.clone(),
             destination.clone(),
             Some(group.clone()),
+            "docx".into(),
             "a4".into(),
             "normal".into(),
         )
         .unwrap();
-        let second = export_docx(
+        let second = export_document(
             path,
             destination,
             Some(group),
+            "docx".into(),
             "letter".into(),
             "wide".into(),
         )
