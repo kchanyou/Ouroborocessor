@@ -1,0 +1,11 @@
+{
+  "name": "ouroborocessor-intro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "for l in ko en es ja zh; do node render.mjs $l || exit 1; done"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

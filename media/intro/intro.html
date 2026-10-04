@@ -1,0 +1,530 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700;800&family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700;800&family=Noto+Serif+SC:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=block" rel="stylesheet">
+<style>
+:root {
+  --paper: #f7f4ec; --ink: #24231f; --muted: #8b877d; --soft: #b9b4a8; --green: #3d6b50; --green-soft: #dfe8df;
+  --card: #fffefb; --card-ink: #24231f; --card-line: rgb(0 0 0 / 7%);
+  --sans: "Noto Sans KR", sans-serif; --serif: "Source Serif 4", "Noto Serif KR", serif;
+}
+html[lang=ja] { --sans: "Noto Sans JP", sans-serif; --serif: "Source Serif 4", "Noto Serif JP", serif; }
+html[lang=zh] { --sans: "Noto Sans SC", sans-serif; --serif: "Source Serif 4", "Noto Serif SC", serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: var(--paper); }
+body { position: relative; font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.layer { position: absolute; inset: 0; }
+#bg { background: var(--paper); }
+#wipe { clip-path: circle(0 at 50% 50%); }
+.abs { position: absolute; will-change: transform, opacity; }
+
+/* opening lines */
+#type { left: 90px; top: 760px; width: 900px; font-family: var(--serif); }
+#line1 { font-size: 64px; line-height: 1.3; color: var(--ink); }
+#line2 { margin-top: 26px; font-size: 76px; line-height: 1.3; font-weight: 600; color: var(--ink); }
+#line2 .hi { color: var(--green); position: relative; }
+#line2 .hi i { position: absolute; left: 0; bottom: -6px; height: 5px; background: var(--green); border-radius: 3px; }
+.caret { display: inline-block; width: 4px; height: 0.95em; margin-left: 4px; vertical-align: -0.12em; background: var(--green); }
+
+/* headings */
+.heading { left: 0; right: 0; top: 470px; text-align: center; }
+.heading h1 { margin: 0; font-size: 104px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.heading p { margin: 18px 0 0; font-size: 32px; color: var(--muted); }
+
+/* tree */
+#tree { left: 0; top: 0; width: 1080px; height: 1920px; }
+.part { position: absolute; font-size: 30px; font-weight: 700; display: flex; align-items: center; gap: 14px; }
+.part::before { content: ""; width: 12px; height: 12px; border-radius: 2px; background: var(--green); }
+.scene { position: absolute; width: 560px; height: 82px; display: flex; align-items: center; gap: 18px; padding: 0 26px;
+  background: var(--card); border-radius: 14px; box-shadow: 0 2px 4px rgb(0 0 0 / 5%), 0 10px 30px rgb(0 0 0 / 8%); }
+.scene b { font-family: var(--serif); font-size: 32px; font-weight: 600; flex: 1; white-space: nowrap; }
+.scene small { font-size: 20px; color: var(--muted); white-space: nowrap; }
+.doc-glyph { width: 22px; height: 28px; border: 2.5px solid #8e8a80; border-radius: 3px; position: relative; flex-shrink: 0; }
+.doc-glyph::after { content: ""; position: absolute; left: 4px; right: 4px; top: 7px; height: 9px; border-top: 2px solid #8e8a80; border-bottom: 2px solid #8e8a80; }
+.branch { position: absolute; height: 3px; background: var(--green); }
+#trunk { position: absolute; width: 4px; background: var(--green); border-radius: 2px; }
+
+/* cards */
+.card { background: var(--card); color: var(--card-ink); border-radius: 18px; box-shadow: 0 2px 4px rgb(0 0 0 / 5%), 0 14px 40px rgb(0 0 0 / 9%); }
+#ms { padding: 34px 44px 40px; }
+#ms .label, .kind { font-size: 22px; font-weight: 700; color: var(--muted); }
+#ms .text { margin-top: 14px; font-family: var(--serif); font-size: 40px; line-height: 1.65; min-height: 132px; }
+mark { background: var(--green-soft); color: inherit; font-weight: 700; padding: 0 4px; border-radius: 6px; }
+#char { padding: 32px 44px 36px; border-left: 8px solid var(--green); }
+#char .kind { color: var(--green); }
+#char h2 { margin: 8px 0 6px; font-family: var(--serif); font-size: 56px; font-weight: 600; }
+#char p { margin: 0; font-family: var(--serif); font-size: 27px; color: var(--muted); line-height: 1.5; }
+#pill { display: flex; align-items: center; gap: 12px; padding: 10px 20px 10px 16px; border-radius: 14px; font-size: 25px; color: var(--muted); background: rgb(0 0 0 / 4.5%); }
+#pill svg { width: 28px; height: 28px; }
+#pill .n { min-width: 34px; height: 34px; border-radius: 17px; background: rgb(0 0 0 / 7%); display: grid; place-items: center; font-size: 21px; font-weight: 700; color: var(--ink); }
+#link { left: 0; top: 0; width: 1080px; height: 1920px; pointer-events: none; }
+#divider { left: 0; height: 4px; background: var(--green); }
+
+/* themes */
+#swatches { left: 0; right: 0; top: 1150px; display: flex; justify-content: center; gap: 62px; }
+.sw { display: grid; justify-items: center; gap: 16px; font-size: 22px; color: var(--muted); }
+.sw i { width: 64px; height: 64px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgb(0 0 0 / 12%); position: relative; }
+.sw i::after { content: ""; position: absolute; inset: -12px; border-radius: 50%; border: 4px solid var(--green); opacity: var(--on, 0); }
+.sw.on { color: var(--ink); font-weight: 700; }
+
+/* goals */
+#goals { left: 140px; width: 800px; padding: 44px 48px 48px; }
+.goal + .goal { margin-top: 40px; padding-top: 36px; border-top: 1.5px solid rgb(0 0 0 / 7%); }
+.goal .row { display: flex; justify-content: space-between; align-items: baseline; }
+.goal .row span { font-size: 28px; font-weight: 700; }
+.goal .row b { font-size: 30px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
+.goal .row b em { font-style: normal; color: var(--ink); font-weight: 700; }
+.track { margin-top: 20px; height: 18px; border-radius: 9px; background: rgb(0 0 0 / 7%); overflow: hidden; }
+.goal.small .track { height: 12px; }
+.fill { height: 100%; border-radius: inherit; background: var(--green); }
+
+/* rewind */
+#timeline { left: 200px; width: 680px; top: 1170px; height: 90px; }
+#timeline .bar { position: absolute; left: 0; right: 0; top: 14px; height: 3px; background: #d6d1c5; }
+.tick { position: absolute; top: 6px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: #9a958a; transform: scale(0.6); }
+.tick-label { position: absolute; top: 48px; width: 200px; margin-left: -100px; text-align: center; font-size: 24px; color: var(--muted); }
+#knob { position: absolute; top: -4px; width: 40px; height: 40px; margin-left: -20px; border-radius: 50%; border: 4px solid var(--green); background: var(--paper); }
+#knob::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--green); }
+
+/* export */
+.file { width: 210px; height: 270px; }
+.file .sheet { position: absolute; inset: 0; background: var(--card); border-radius: 14px; box-shadow: 0 2px 4px rgb(0 0 0 / 6%), 0 16px 40px rgb(0 0 0 / 10%);
+  clip-path: polygon(0 0, 74% 0, 100% 20%, 100% 100%, 0 100%); }
+.file .fold { position: absolute; right: 0; top: 0; width: 26%; height: 20%; background: #e4dfd3; border-bottom-left-radius: 10px; }
+.file .badge { position: absolute; left: 22px; top: 28px; padding: 6px 12px; border-radius: 7px; color: #fff; font-size: 24px; font-weight: 800; letter-spacing: 0.02em; }
+.file .lines { position: absolute; left: 24px; right: 24px; top: 98px; display: grid; gap: 22px; }
+.file .lines i { height: 5px; border-radius: 3px; background: #d8d3c7; }
+.file .lines i:nth-child(4) { width: 62%; }
+#paper-note { left: 0; right: 0; top: 1290px; text-align: center; font-size: 28px; color: var(--muted); }
+
+/* ending */
+#logo { left: 290px; top: 470px; width: 500px; height: 500px; }
+#logo img { position: absolute; left: 0; top: 0; width: 500px; height: 500px; }
+#ring { left: 290px; top: 470px; width: 500px; height: 500px; overflow: visible; }
+#wordmark { left: 0; right: 0; top: 1070px; text-align: center; font-family: "Source Serif 4", serif; font-weight: 600; font-size: 104px; letter-spacing: -0.01em; }
+#tagline { left: 0; right: 0; top: 1240px; text-align: center; font-size: 44px; line-height: 1.6; white-space: pre-line; }
+#meta { left: 0; right: 0; top: 1470px; text-align: center; font-size: 28px; color: var(--muted); }
+#cta { left: 0; right: 0; top: 1525px; text-align: center; font-size: 36px; font-weight: 700; color: var(--green); }
+</style>
+</head>
+<body>
+<div id="bg" class="layer"></div>
+<div id="wipe" class="layer"></div>
+
+<div id="type" class="abs"><div id="line1"></div><div id="line2"></div></div>
+
+<div id="tree" class="abs"></div>
+
+<svg id="link" class="abs" viewBox="0 0 1080 1920"><path id="link-path" fill="none" stroke="#3d6b50" stroke-width="4" stroke-linecap="round"/><circle id="link-dot" r="9" fill="#3d6b50"/></svg>
+<div id="divider" class="abs"></div>
+<div id="ms" class="abs card"><div class="label"></div><div class="text"></div></div>
+<div id="pill" class="abs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1"/></svg><span class="t"></span><span class="n">1</span></div>
+<div id="char" class="abs card"><div class="kind"></div><h2></h2><p></p></div>
+
+<div id="swatches" class="abs"></div>
+<div id="goals" class="abs card"></div>
+<div id="timeline" class="abs"><div class="bar"></div></div>
+<div id="files"></div>
+<div id="paper-note" class="abs"></div>
+
+<svg id="ring" class="abs" viewBox="0 0 500 500"><rect id="ring-rect" x="12" y="12" width="476" height="476" rx="112" fill="none" stroke="#3d6b50" stroke-width="8"/></svg>
+<div id="logo" class="abs"><img src="../../src-tauri/icons/icon.png" alt=""></div>
+<div id="wordmark" class="abs">Ouroborocessor</div>
+<div id="tagline" class="abs"></div>
+<div id="meta" class="abs"></div>
+<div id="cta" class="abs"></div>
+
+<div id="headings"></div>
+
+<script>
+const COPY = {
+  ko: {
+    l1: "첫 문장은 쉽다.", l2: ["300장째", "가 어렵다."],
+    parts: [["1부 · 바다", [["첫눈", "1,204자"], ["편지", "2,860자"], ["불빛", "1,935자"]]], ["2부 · 마을", [["항구", "3,112자"], ["귀환", "2,447자"]]]],
+    scenes: [["정리하고", "부와 장면으로, 끌어서 바로"], ["잇고", "인물·장소 레퍼런스를 원고에"], ["나란히 보고", "원고와 레퍼런스를 한 화면에"], ["편하게 쓰고", "눈에 맞는 배경으로"], ["목표를 채우고", "오늘 얼마나 썼는지 한눈에"], ["되돌리고", "장면마다 이전 원고로"], ["내보내고", "DOCX·HWPX·ODT·PDF로, 용지와 여백까지"]],
+    msLabel: "첫눈", ms: [["첫눈은 하루 일찍 왔다. "], ["하윤", 1], ["은 등대 계단을 오르다 말고 창밖을 내다봤다."]],
+    kind: "인물", name: "하윤", desc: "등대지기의 딸. 아버지의 일지를 이어 쓴다.", pill: "레퍼런스",
+    themes: ["종이", "세피아", "안개", "슬레이트", "밤"],
+    goals: [["오늘", 1640, 2000, "자"], ["원고 전체", 48200, 120000, "자"]], num: "ko-KR",
+    times: ["3일 전", "어제", "지금"], paper: "A4 · 여백 25.4mm",
+    tagline: "계정도 광고도 없이.\n원고는 내 컴퓨터에.", meta: "무료 베타 · macOS · Windows · Linux", cta: "GitHub에서 받기",
+  },
+  en: {
+    l1: "The first line is easy.", l2: ["Page 300", " is not."],
+    parts: [["Part 1 · The Sea", [["First Snow", "1,204 chars"], ["The Letter", "2,860 chars"], ["The Light", "1,935 chars"]]], ["Part 2 · The Town", [["The Harbor", "3,112 chars"], ["Homecoming", "2,447 chars"]]]],
+    scenes: [["Organize", "Parts and scenes, drag to reorder"], ["Link", "Character and place cards, in the text"], ["Side by side", "Draft and research on one screen"], ["Write in comfort", "A page that suits your eyes"], ["Keep pace", "Today’s progress at a glance"], ["Rewind", "Any scene, back to an earlier draft"], ["Export", "DOCX, HWPX, ODT or PDF, paper and margins too"]],
+    msLabel: "First Snow", ms: [["The first snow came a day early. "], ["Hayun", 1], [" stopped halfway up the lighthouse stairs."]],
+    kind: "Character", name: "Hayun", desc: "The keeper’s daughter. She carries on her father’s logbook.", pill: "Linked research",
+    themes: ["Paper", "Sepia", "Mist", "Slate", "Night"],
+    goals: [["Today", 1640, 2000, " chars"], ["Whole draft", 48200, 120000, " chars"]], num: "en-US",
+    times: ["3 days ago", "Yesterday", "Now"], paper: "A4 · 25.4 mm margins",
+    tagline: "No account. No ads.\nYour drafts stay on your computer.", meta: "Free beta · macOS · Windows · Linux", cta: "Get it on GitHub",
+  },
+  es: {
+    l1: "La primera frase es fácil.", l2: ["La página 300", ", no."],
+    parts: [["Parte 1 · El mar", [["Primera nevada", "1.204 car."], ["La carta", "2.860 car."], ["La luz", "1.935 car."]]], ["Parte 2 · El pueblo", [["El puerto", "3.112 car."], ["El regreso", "2.447 car."]]]],
+    scenes: [["Organiza", "Partes y escenas, arrastra y listo"], ["Enlaza", "Personajes y lugares, en el texto"], ["Lado a lado", "Borrador y referencias en una pantalla"], ["Escribe cómodo", "Un fondo que cuida tus ojos"], ["Lleva el ritmo", "Tu avance de hoy, a la vista"], ["Vuelve atrás", "Cada escena, a una versión anterior"], ["Exporta", "A DOCX, HWPX, ODT o PDF, con papel y márgenes"]],
+    msLabel: "Primera nevada", ms: [["La primera nevada llegó un día antes. "], ["Hayun", 1], [" se detuvo en la escalera del faro."]],
+    kind: "Personaje", name: "Hayun", desc: "La hija del farero. Continúa el cuaderno de su padre.", pill: "Referencias vinculadas",
+    themes: ["Papel", "Sepia", "Niebla", "Pizarra", "Noche"],
+    goals: [["Hoy", 1640, 2000, " car."], ["Todo el borrador", 48200, 120000, " car."]], num: "es-ES",
+    times: ["Hace 3 días", "Ayer", "Ahora"], paper: "A4 · márgenes de 25,4 mm",
+    tagline: "Sin cuenta. Sin anuncios.\nTus textos se quedan en tu equipo.", meta: "Beta gratuita · macOS · Windows · Linux", cta: "Descárgala en GitHub",
+  },
+  ja: {
+    l1: "最初の一文はやさしい。", l2: ["300枚目", "がむずかしい。"],
+    parts: [["第1部・海", [["初雪", "1,204字"], ["手紙", "2,860字"], ["灯り", "1,935字"]]], ["第2部・町", [["港", "3,112字"], ["帰還", "2,447字"]]]],
+    scenes: [["整理して", "部と場面に、ドラッグで"], ["つないで", "人物・場所カードを原稿に"], ["並べて見て", "原稿と資料をひとつの画面に"], ["心地よく書いて", "目にやさしい背景で"], ["目標を追って", "今日の進み具合がひと目で"], ["巻き戻して", "場面ごとに以前の原稿へ"], ["書き出して", "DOCX・HWPX・ODT・PDFに、用紙と余白まで"]],
+    msLabel: "初雪", ms: [["初雪は予報より一日早く降った。"], ["ハユン", 1], ["は灯台の階段の途中で足を止めた。"]],
+    kind: "人物", name: "ハユン", desc: "灯台守の娘。父の日誌を書き継いでいる。", pill: "リンク資料",
+    themes: ["紙", "セピア", "霧", "スレート", "夜"],
+    goals: [["今日", 1640, 2000, "字"], ["原稿全体", 48200, 120000, "字"]], num: "ja-JP",
+    times: ["3日前", "昨日", "いま"], paper: "A4・余白 25.4mm",
+    tagline: "アカウントも広告もなし。\n原稿はあなたのPCに。", meta: "無料ベータ · macOS · Windows · Linux", cta: "GitHubで入手",
+  },
+  zh: {
+    l1: "第一句很容易。", l2: ["第300页", "才难。"],
+    parts: [["第一部・海", [["初雪", "1,204字"], ["信", "2,860字"], ["灯光", "1,935字"]]], ["第二部・小镇", [["港口", "3,112字"], ["归来", "2,447字"]]]],
+    scenes: [["整理", "按部和场景，拖动即可"], ["链接", "把人物和地点卡片连进原稿"], ["并排", "原稿和资料同屏对照"], ["舒适地写", "选一种护眼的背景"], ["盯住目标", "今天写了多少，一目了然"], ["回溯", "每个场景都能找回旧稿"], ["导出", "DOCX、HWPX、ODT、PDF，纸张和页边距一并保留"]],
+    msLabel: "初雪", ms: [["初雪比预报早来了一天。"], ["夏允", 1], ["在灯塔的楼梯上停下了脚步。"]],
+    kind: "人物", name: "夏允", desc: "守塔人的女儿，接着写父亲的日志。", pill: "关联资料",
+    themes: ["纸张", "复古", "雾", "石板", "夜间"],
+    goals: [["今天", 1640, 2000, "字"], ["整部原稿", 48200, 120000, "字"]], num: "zh-CN",
+    times: ["3天前", "昨天", "现在"], paper: "A4 · 页边距 25.4mm",
+    tagline: "无需账号，没有广告。\n原稿只留在你的电脑里。", meta: "免费测试版 · macOS · Windows · Linux", cta: "在 GitHub 获取",
+  },
+};
+const lang = new URLSearchParams(location.search).get("lang") || "ko";
+const C = COPY[lang];
+document.documentElement.lang = lang;
+
+// timeline (seconds)
+const T = { type: [0, 3.3], tree: [3.1, 6.3], link: [6.3, 8.5], side: [8.5, 10.5], theme: [10.5, 13.3], goal: [13.3, 15.5], rewind: [15.5, 17.7], export: [17.7, 20.0], end: [20.0, 24.0] };
+const DURATION = 24;
+
+const THEMES = [
+  { bg: "#f7f4ec", card: "#fffefb", ink: "#24231f", sw: "#f9f6ef" },
+  { bg: "#efe4cc", card: "#f8f0dd", ink: "#2e2618", sw: "#efe2c6" },
+  { bg: "#e5ebe7", card: "#f2f6f3", ink: "#22282a", sw: "#e2e9e5" },
+  { bg: "#2a2f36", card: "#343a42", ink: "#e9e7e1", sw: "#2f353d" },
+  { bg: "#17181a", card: "#212225", ink: "#e6e3dc", sw: "#141517" },
+];
+
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeInOut = (k) => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeBack = (k) => { const c = 1.4; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const set = (el, { x = 0, y = 0, s = 1, r = 0, o = 1 } = {}) => { el.style.transform = `translate(${x}px, ${y}px) scale(${s}) rotate(${r}deg)`; el.style.opacity = o; el.style.visibility = o <= 0.001 ? "hidden" : "visible"; };
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const numberFormat = new Intl.NumberFormat(C.num, { useGrouping: "always" });
+const fmt = (n) => numberFormat.format(Math.round(n));
+const mix = (a, b, k) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], k))).join(",")})`; };
+
+// build headings
+const headingEls = C.scenes.map(([title, sub]) => {
+  const el = document.createElement("div");
+  el.className = "abs heading";
+  el.innerHTML = `<h1>${esc(title)}</h1><p>${esc(sub)}</p>`;
+  $("#headings").appendChild(el);
+  return el;
+});
+
+// build tree
+const tree = $("#tree");
+const trunk = document.createElement("div"); trunk.id = "trunk"; tree.appendChild(trunk);
+const treeItems = [];
+let ty = 760;
+const TREE_X = 180;
+C.parts.forEach(([part, scenes], pi) => {
+  const p = document.createElement("div"); p.className = "part abs"; p.textContent = part; tree.appendChild(p);
+  treeItems.push({ el: p, x: TREE_X - 6, y: ty, kind: "part" });
+  ty += 66;
+  scenes.forEach(([name, count]) => {
+    const branch = document.createElement("div"); branch.className = "branch abs"; tree.appendChild(branch);
+    const s = document.createElement("div"); s.className = "scene abs";
+    s.innerHTML = `<span class="doc-glyph"></span><b>${esc(name)}</b><small>${esc(count)}</small>`;
+    tree.appendChild(s);
+    treeItems.push({ el: s, branch, x: TREE_X + 120, y: ty, kind: "scene" });
+    ty += 102;
+  });
+  ty += 18;
+});
+const TREE_TOP = 760, TREE_BOTTOM = ty - 120;
+// deterministic scatter
+const scatter = treeItems.map((_, i) => ({ dx: [-260, 220, -120, 300, -300, 140, -40][i % 7], dy: [-520, -380, -640, -300, -460, -700, -560][i % 7], r: [-18, 14, -9, 22, -24, 11, -15][i % 7] }));
+
+// cards
+$("#ms .label").textContent = C.msLabel;
+const msChars = [];
+C.ms.forEach(([text, isMark]) => Array.from(text).forEach((ch) => msChars.push({ ch, mark: !!isMark })));
+function msHTML(n) {
+  let out = "", open = false;
+  msChars.slice(0, n).forEach(({ ch, mark }) => {
+    if (mark && !open) { out += "<mark>"; open = true; }
+    if (!mark && open) { out += "</mark>"; open = false; }
+    out += esc(ch);
+  });
+  return out + (open ? "</mark>" : "");
+}
+$("#char .kind").textContent = C.kind; $("#char h2").textContent = C.name; $("#char p").textContent = C.desc;
+$("#pill .t").textContent = C.pill;
+
+// swatches
+C.themes.forEach((name, i) => { const d = document.createElement("div"); d.className = "sw"; d.innerHTML = `<i style="background:${THEMES[i].sw}"></i><span>${esc(name)}</span>`; $("#swatches").appendChild(d); });
+
+// goals
+$("#goals").innerHTML = C.goals.map(([label], i) => `<div class="goal ${i ? "small" : ""}"><div class="row"><span>${esc(label)}</span><b></b></div><div class="track"><div class="fill"></div></div></div>`).join("");
+
+// timeline ticks
+const tl = $("#timeline");
+C.times.forEach((label, i) => { const x = i * 340; tl.insertAdjacentHTML("beforeend", `<div class="tick" style="left:${x}px"></div><div class="tick-label" style="left:${x}px">${esc(label)}</div>`); });
+tl.insertAdjacentHTML("beforeend", `<div id="knob"></div>`);
+
+// export files
+const FILES = [["DOCX", "#2f5f8a"], ["HWPX", "#3d6b50"], ["ODT", "#6b5a3d"], ["PDF", "#9a3f37"]];
+const fileEls = FILES.map(([name, color]) => {
+  const f = document.createElement("div"); f.className = "abs file";
+  f.innerHTML = `<div class="sheet"></div><div class="fold"></div><div class="badge" style="background:${color}">${name}</div><div class="lines"><i></i><i></i><i></i><i></i></div>`;
+  $("#files").appendChild(f); return f;
+});
+$("#paper-note").textContent = C.paper;
+$("#tagline").textContent = C.tagline; $("#meta").textContent = C.meta; $("#cta").textContent = C.cta;
+
+const ringRect = $("#ring-rect");
+const ringLen = ringRect.getTotalLength();
+ringRect.style.strokeDasharray = ringLen;
+
+function headingState(i, t) {
+  const keys = ["tree", "link", "side", "theme", "goal", "rewind", "export"];
+  const [a, b] = T[keys[i]];
+  const start = i === 0 ? a + 0.5 : a + 0.05;
+  const inK = easeOut(prog(t, start, start + 0.45));
+  const outK = prog(t, b - 0.3, b);
+  return { y: lerp(40, 0, inK) - outK * 30, o: inK * (1 - outK) };
+}
+
+function caret(on) { return on ? `<span class="caret"></span>` : ""; }
+
+function render(t) {
+  // ---- background / theme wipe
+  let theme = 0, prevTheme = 0, wipeK = 1;
+  const themeTimes = [11.0, 11.55, 12.1, 12.65, 13.15];
+  const order = [1, 2, 3, 4, 0];
+  for (let i = 0; i < themeTimes.length; i++) if (t >= themeTimes[i]) { prevTheme = theme; theme = order[i]; wipeK = prog(t, themeTimes[i], themeTimes[i] + 0.45); }
+  const swIndex = theme;
+  const cur = THEMES[theme], prev = THEMES[prevTheme];
+  $("#bg").style.background = prev.bg;
+  const sx = 540 + (swIndex - 2) * 126;
+  $("#wipe").style.background = cur.bg;
+  $("#wipe").style.clipPath = `circle(${easeInOut(wipeK) * 2300}px at ${sx}px 1182px)`;
+  const inkK = easeInOut(wipeK);
+  document.body.style.setProperty("--ink", mix(prev.ink, cur.ink, inkK));
+  document.body.style.setProperty("--card", mix(prev.card, cur.card, inkK));
+  document.body.style.setProperty("--card-ink", mix(prev.ink, cur.ink, inkK));
+  const dark = (theme >= 3 ? inkK : 0) + (prevTheme >= 3 ? 1 - inkK : 0);
+  document.body.style.setProperty("--muted", mix("#8b877d", "#a19d93", dark));
+  document.body.style.setProperty("--green-soft", mix("#dfe8df", "#3c5546", dark));
+
+  // ---- opening lines
+  {
+    const n1 = Math.floor(prog(t, 0.25, 1.25) * Array.from(C.l1).length);
+    const l2 = C.l2[0] + C.l2[1];
+    const n2 = Math.floor(prog(t, 1.55, 2.55) * Array.from(l2).length);
+    const blink = Math.floor(t * 2.2) % 2 === 0;
+    const onLine2 = t >= 1.45;
+    $("#line1").innerHTML = esc(Array.from(C.l1).slice(0, n1).join("")) + caret(!onLine2 && (blink || t < 1.3));
+    const a = Array.from(C.l2[0]), typedA = a.slice(0, n2).join(""), typedB = Array.from(C.l2[1]).slice(0, Math.max(0, n2 - a.length)).join("");
+    const underline = easeOut(prog(t, 2.55, 2.95));
+    $("#line2").innerHTML = onLine2 ? `<span class="hi">${esc(typedA)}<i style="width:${underline * 100}%"></i></span>${esc(typedB)}${caret(blink || t < 2.6)}` : "";
+    $("#line1").style.color = onLine2 ? mix("#24231f", "#aaa596", easeOut(prog(t, 1.4, 1.8))) : "";
+    const out = prog(t, 2.95, 3.3);
+    set($("#type"), { y: -out * 80, o: 1 - out });
+  }
+
+  // ---- tree
+  {
+    const [a, b] = T.tree;
+    const fall = (i) => easeBack(prog(t, a + 0.1 + i * 0.07, a + 0.85 + i * 0.07));
+    const outK = easeInOut(prog(t, b - 0.35, b));
+    // reorder: third scene moves above second
+    const drag = easeInOut(prog(t, 5.05, 5.6));
+    const lift = Math.sin(Math.PI * drag);
+    treeItems.forEach((item, i) => {
+      const k = fall(i);
+      const sc = scatter[i];
+      let y = item.y;
+      if (i === 2) y = lerp(item.y, item.y + 102, drag);
+      if (i === 3) y = lerp(item.y, item.y - 102, drag);
+      const x = item.x + (1 - k) * sc.dx;
+      const yy = y + (1 - k) * sc.dy;
+      const pop = i === 3 ? lift : 0;
+      set(item.el, { x, y: yy - pop * 8 - outK * 60, r: (1 - k) * sc.r, s: 1 + pop * 0.04, o: clamp(k * 3) * (1 - outK) * (t < a ? 0 : 1) });
+      item.el.style.zIndex = i === 3 ? 3 : 1;
+      if (pop) item.el.style.boxShadow = `0 2px 4px rgb(0 0 0 / 5%), 0 ${10 + pop * 20}px ${30 + pop * 30}px rgb(0 0 0 / ${8 + pop * 8}%)`;
+      if (item.branch) {
+        const bk = easeOut(prog(t, a + 1.0 + i * 0.05, a + 1.35 + i * 0.05));
+        item.branch.style.left = `${TREE_X + 2}px`;
+        item.branch.style.top = `${y + 40}px`;
+        item.branch.style.width = `${bk * 118}px`;
+        item.branch.style.opacity = 1 - outK;
+      }
+    });
+    const tk = easeOut(prog(t, a + 0.8, a + 1.3));
+    trunk.style.left = `${TREE_X}px`; trunk.style.top = `${TREE_TOP + 20}px`;
+    trunk.style.height = `${tk * (TREE_BOTTOM - TREE_TOP + 40)}px`;
+    trunk.style.opacity = 1 - outK;
+  }
+
+  // ---- headings
+  headingEls.forEach((el, i) => set(el, headingState(i, t)));
+
+  // ---- manuscript + character cards
+  {
+    const ms = $("#ms"), ch = $("#char"), pill = $("#pill");
+    const linkIn = easeOut(prog(t, 6.35, 6.85));
+    let msX = 140, msY = 790, msO = 0, msW = 800;
+    msO = linkIn;
+    msY = lerp(830, 790, linkIn);
+    // side-by-side: move up
+    const sideK = easeInOut(prog(t, 8.5, 9.0));
+    msY = lerp(msY, 740, sideK);
+    // theme: settle
+    const themeK = easeInOut(prog(t, 10.5, 10.95));
+    msY = lerp(msY, 800, themeK);
+    // goal: hide
+    const goalOut = easeInOut(prog(t, 13.3, 13.6));
+    const rewindIn = easeOut(prog(t, 15.55, 15.95));
+    // export: shrink into files
+    const expK = easeInOut(prog(t, 17.75, 18.25));
+    let o = msO * (1 - goalOut) + rewindIn * (t >= 15.5 ? 1 : 0);
+    if (t >= 15.5) msY = lerp(830, 800, rewindIn);
+    const s = lerp(1, 0.3, expK);
+    o *= 1 - prog(t, 17.95, 18.25);
+    ms.style.width = `${msW}px`;
+    set(ms, { x: msX, y: msY, s, o });
+    // rewind edits
+    let n = msChars.length;
+    if (t >= 15.5) {
+      const del = prog(t, 16.0, 16.5), back = t >= 16.85;
+      n = back ? msChars.length : Math.round(lerp(msChars.length, msChars.length * 0.42, del));
+    }
+    ms.querySelector(".text").innerHTML = msHTML(n);
+    const restoreFlash = Math.sin(Math.PI * prog(t, 16.8, 17.3));
+    ms.style.background = restoreFlash > 0 ? mix("#fffefb", "#e8efe7", restoreFlash) : "";
+
+    // pill
+    const pillK = easeOut(prog(t, 7.5, 7.85));
+    const pillOut = prog(t, 8.45, 8.7);
+    set(pill, { x: 146, y: 1072, o: pillK * (1 - pillOut) });
+
+    // character card
+    const chIn = easeOut(prog(t, 7.0, 7.45));
+    let cx = 200, cy = lerp(1210, 1170, chIn), co = chIn;
+    cx = lerp(cx, 140, sideK); cy = lerp(cy, 1060, sideK);
+    const chOut = prog(t, 10.5, 10.8);
+    ch.style.width = `${lerp(620, 800, sideK)}px`;
+    set(ch, { x: cx, y: cy, o: co * (1 - chOut) });
+
+    // link line from highlight to card
+    const mark = ms.querySelector("mark");
+    const draw = easeInOut(prog(t, 6.75, 7.2));
+    const linkOut = prog(t, 8.45, 8.7);
+    if (mark && t > 6.6 && t < 8.7) {
+      const r = mark.getBoundingClientRect();
+      const x1 = r.left + r.width / 2, y1 = r.bottom - 6;
+      const x2 = cx + 470, y2 = cy + 4;
+      const d = `M${x1},${y1} C${x1},${y1 + 120} ${x2},${y2 - 140} ${x2},${y2}`;
+      const path = $("#link-path"); path.setAttribute("d", d);
+      const len = path.getTotalLength(); path.style.strokeDasharray = len; path.style.strokeDashoffset = len * (1 - draw);
+      const pt = path.getPointAtLength(len * draw);
+      $("#link-dot").setAttribute("cx", pt.x); $("#link-dot").setAttribute("cy", pt.y);
+      $("#link").style.opacity = 1 - linkOut;
+    } else $("#link").style.opacity = 0;
+    // highlight pop
+    if (mark) mark.style.background = t < 6.6 && t > 6.3 ? "transparent" : "";
+
+    // divider
+    const dk = easeInOut(prog(t, 8.75, 9.3));
+    const dOut = prog(t, 10.3, 10.55);
+    $("#divider").style.width = `${dk * 1080}px`;
+    set($("#divider"), { y: 1020, o: 1 - dOut });
+  }
+
+  // ---- swatches
+  {
+    const inK = easeOut(prog(t, 10.75, 11.1));
+    const out = prog(t, 13.15, 13.4);
+    set($("#swatches"), { y: lerp(30, 0, inK), o: inK * (1 - out) });
+    document.querySelectorAll(".sw").forEach((el, i) => { el.classList.toggle("on", i === swIndex); el.querySelector("i").style.setProperty("--on", i === swIndex ? 1 : 0); });
+  }
+
+  // ---- goals
+  {
+    const inK = easeOut(prog(t, 13.5, 13.9));
+    const out = prog(t, 15.2, 15.5);
+    set($("#goals"), { x: 0, y: lerp(830, 790, inK), o: inK * (1 - out) });
+    const goals = document.querySelectorAll(".goal");
+    C.goals.forEach(([_, value, total, unit], i) => {
+      const k = easeOut(prog(t, 13.75 + i * 0.25, 14.85 + i * 0.25));
+      goals[i].querySelector("b").innerHTML = `<em>${fmt(value * k)}</em> / ${fmt(total)}${esc(unit)}`;
+      goals[i].querySelector(".fill").style.width = `${(value / total) * k * 100}%`;
+    });
+  }
+
+  // ---- rewind timeline
+  {
+    const inK = easeOut(prog(t, 15.75, 16.1));
+    const out = prog(t, 17.45, 17.7);
+    set($("#timeline"), { y: lerp(20, 0, inK), o: inK * (1 - out) });
+    const move = easeInOut(prog(t, 16.4, 16.85));
+    $("#knob").style.left = `${lerp(680, 340, move)}px`;
+  }
+
+  // ---- export files
+  {
+    fileEls.forEach((f, i) => {
+      const k = easeBack(prog(t, 18.05 + i * 0.12, 18.6 + i * 0.12));
+      const out = prog(t, 19.7, 20.0);
+      const tx = 540 - 105 + (i - 1.5) * 200;
+      const r = (i - 1.5) * 4;
+      set(f, { x: lerp(540 - 105, tx, k), y: lerp(940, 860, k) + Math.abs(i - 1.5) * 18 - out * 40, r: r * k, s: lerp(0.5, 1, k), o: clamp(k * 2) * (1 - out) });
+      f.style.zIndex = 10 + i;
+    });
+    const nk = easeOut(prog(t, 18.7, 19.1));
+    set($("#paper-note"), { y: lerp(20, 0, nk), o: nk * (1 - prog(t, 19.7, 20.0)) });
+  }
+
+  // ---- ending
+  {
+    const ring = easeInOut(prog(t, 20.05, 20.85));
+    ringRect.style.strokeDashoffset = ringLen * (1 - ring);
+    set($("#ring"), { o: t > 20.0 ? 1 : 0, s: 1 });
+    const logoK = easeOut(prog(t, 20.6, 21.15));
+    set($("#logo"), { s: lerp(1.04, 1.1, logoK), o: logoK });
+    const w = easeOut(prog(t, 21.05, 21.5));
+    set($("#wordmark"), { y: lerp(26, 0, w), o: w });
+    const tg = easeOut(prog(t, 21.45, 21.9));
+    set($("#tagline"), { y: lerp(20, 0, tg), o: tg });
+    const m = easeOut(prog(t, 21.95, 22.4));
+    set($("#meta"), { y: lerp(16, 0, m), o: m });
+    set($("#cta"), { y: lerp(16, 0, m), o: m });
+  }
+}
+
+window.DURATION = DURATION;
+window.render = render;
+// touch every scene once so each font subset and weight gets requested before frames are captured
+for (let k = 0; k <= DURATION; k += 0.25) render(k);
+window.ready = Promise.all([new Promise((r) => setTimeout(r, 50)).then(() => document.fonts.ready), new Promise((r) => { const img = $("#logo img"); img.complete ? r() : img.onload = r; })]);
+const seek = new URLSearchParams(location.search).get("t");
+if (seek !== null) render(parseFloat(seek));
+else { const start = performance.now(); const loop = () => { render(((performance.now() - start) / 1000) % DURATION); requestAnimationFrame(loop); }; loop(); }
+</script>
+</body>
+</html>
