@@ -7,17 +7,20 @@ export function importScenes(sources: ImportSource[], split: boolean): ImportedS
     const text = source.content.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
     if (text.includes("\0")) throw new Error("IMPORT_INVALID");
     if (!split) { scenes.push({ title, content: text }); continue; }
-    const lines = text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
     let fence: string | null = null, offset = 0;
     const starts: { at: number; title: string }[] = [];
-    for (const line of lines) {
-      const delimiter = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-      if (delimiter) {
-        if (!fence) fence = delimiter;
-        else if (delimiter[0] === fence[0] && delimiter.length >= fence.length && new RegExp(`^ {0,3}${delimiter}\\s*$`).test(line)) fence = null;
-      } else if (!fence) {
+    for (const [line] of text.matchAll(/[^\n]*\n|[^\n]+$/g)) {
+      const delimiter = /^ {0,3}(`{3,}|~{3,})([^\n]*)\n?$/.exec(line);
+      if (fence) {
+        if (delimiter && delimiter[1][0] === fence[0] && delimiter[1].length >= fence.length && /^[\t ]*$/.test(delimiter[2])) fence = null;
+      } else if (delimiter && (delimiter[1][0] === "~" || !delimiter[2].includes("`"))) {
+        fence = delimiter[1];
+      } else {
         const heading = /^ {0,3}#{1,6}[\t ]+(.+?)(?:[\t ]+#+)?[\t ]*\n?$/.exec(line);
-        if (heading) starts.push({ at: offset, title: heading[1].trim() });
+        if (heading) {
+          starts.push({ at: offset, title: heading[1].trim() });
+          if (scenes.length + starts.length + (starts[0].at > 0 ? 1 : 0) > 500) throw new Error("IMPORT_INVALID");
+        }
       }
       offset += line.length;
     }

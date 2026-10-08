@@ -69,12 +69,25 @@ export function recentProjects(): RecentProject[] {
 export function rememberProject(project: RecentProject, replacedPath?: string) {
   writeStored(recentKey, [project, ...recentProjects().filter(item => item.path !== project.path && item.path !== replacedPath)].slice(0, 15));
 }
+/** Only edits the launcher history. Project files, recovery drafts and sessions stay intact. */
+export function forgetProject(path: string) {
+  writeStored(recentKey, recentProjects().filter(item => item.path !== path));
+  return recentProjects();
+}
+export function restoreRecentProject(project: RecentProject, index: number) {
+  const latest = recentProjects();
+  if (!latest.some(item => item.path === project.path)) {
+    latest.splice(Math.max(0, Math.min(latest.length, index)), 0, project);
+    writeStored(recentKey, latest.slice(0, 15));
+  }
+  return recentProjects();
+}
 export function relocateSession(oldPath: string, next: ProjectSnapshot) {
   const session = normalizeSession(readStored(prefix + oldPath), next);
-  if (session) saveSession(next.projectPath, session);
+  if (session && !readSession(next)) saveSession(next.projectPath, session);
   for (const node of next.nodes) for (const pane of ["main", "side"]) {
     const position = readPosition(oldPath, node.id, pane, node.content.length);
-    if (position) savePosition(next.projectPath, node.id, pane, position);
+    if (position && !readPosition(next.projectPath, node.id, pane, node.content.length)) savePosition(next.projectPath, node.id, pane, position);
   }
   rememberProject({ path: next.projectPath, title: next.title }, oldPath);
 }

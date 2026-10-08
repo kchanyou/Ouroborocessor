@@ -12,6 +12,12 @@ describe("shortcut system", () => {
     expect(matchesShortcut({ key: "Tab", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }, shortcuts.nextTab, true)).toBe(false);
   });
 
+  it("renames with a bare F2 key", () => {
+    expect(matchesShortcut({ key: "F2", metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }, shortcuts.renameTitle, false)).toBe(true);
+    expect(matchesShortcut({ key: "F2", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false }, shortcuts.renameTitle, false)).toBe(false);
+    expect(shortcutLabel(shortcuts.renameTitle, true)).toBe("F2");
+  });
+
   it("formats platform-native labels", () => {
     expect(shortcutLabel(shortcuts.commandPalette, true)).toBe("⌘⇧P");
     expect(shortcutLabel(shortcuts.commandPalette, false)).toBe("Ctrl+Shift+P");

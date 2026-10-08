@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { importScenes, readImportFiles } from "./importManuscript";
 import { revisionDiff } from "./revisionDiff";
-import { goalCounts, localDay, readGoals, recordWriting, saveGoals } from "./writingGoals";
+import { goalCounts, localDay, readGoals, recordWriting, relocateGoals, saveGoals } from "./writingGoals";
 import { writingToolsText } from "./writingToolsText";
 import { featureText } from "./featureText";
 
@@ -26,6 +26,27 @@ it("rejects binary, invalid UTF-8, unsupported files and oversized imports", asy
   await expect(readImportFiles([fake("test.docx", [1])])).rejects.toThrow();
   await expect(readImportFiles([fake("test.md", [1], 51 * 1024 * 1024)])).rejects.toThrow();
   expect(() => importScenes(Array.from({ length: 501 }, () => ({ name: "a.txt", content: "a" })), false)).toThrow();
+});
+
+it("splits headings after inline backticks without treating them as a code fence", () => {
+  const text = "```inline `code`\n# Chapter one\nBody\n## Chapter two\n";
+  const scenes = importScenes([{ name: "book.md", content: text }], true);
+  expect(scenes.map(scene => scene.title)).toEqual(["book", "Chapter one", "Chapter two"]);
+  expect(scenes.map(scene => scene.content).join("")).toBe(text);
+});
+
+it("keeps code headings together until a matching fence with only spaces or tabs", () => {
+  const text = "# Start\n````md\n# Code\n```\n# Still code\n~~~~\n# Also code\n````\u00a0\n# Not a closing fence\n  `````\t \n## End\n~~~info `allowed`\n# Tilde code\n~~~\n# Final\n";
+  const scenes = importScenes([{ name: "book.md", content: text }], true);
+  expect(scenes.map(scene => scene.title)).toEqual(["Start", "End", "Final"]);
+  expect(scenes.map(scene => scene.content).join("")).toBe(text);
+});
+
+it("applies the import limit to heading splits including prefaces and previous files", () => {
+  const chapters = Array.from({ length: 500 }, (_, i) => `# Chapter ${i}\nBody\n`).join("");
+  expect(importScenes([{ name: "book.md", content: chapters }], true)).toHaveLength(500);
+  expect(() => importScenes([{ name: "book.md", content: `Preface\n${chapters}` }], true)).toThrow("IMPORT_INVALID");
+  expect(() => importScenes([{ name: "first.txt", content: "First" }, { name: "book.md", content: chapters }], true)).toThrow("IMPORT_INVALID");
 });
 
 it("reconstructs both revisions exactly, including repeated words, Unicode and whitespace", () => {
@@ -58,4 +79,49 @@ it("provides every added string in all supported languages", () => {
     expect(Object.keys(dictionary[locale]).sort()).toEqual(Object.keys(dictionary.en).sort());
     expect(Object.values(dictionary[locale]).every(value => value.trim().length > 0)).toBe(true);
   }
+});
+
+it("restores valid goal counts while dropping malformed stored entries", () => {
+  localStorage.setItem("ouroborocessor.goals.v1:one", JSON.stringify({
+    enabled: true, daily: -3, project: "100", days: {
+      "2026-10-01": { spaces: 12, compact: 9, extra: "ignored" },
+      "2026-10-02": { spaces: -4, compact: -3 },
+      "2026-10-03": null,
+      "2026-10-04": { spaces: "12", compact: 9 },
+      "2026-10-05": { spaces: 1.5, compact: 1 },
+      "2026-10-06": { spaces: Number.MAX_SAFE_INTEGER + 1, compact: 1 },
+      invalid: { spaces: 2, compact: 1 },
+    },
+  }));
+  expect(readGoals("one")).toMatchObject({ enabled: true, daily: 1, project: 100000 });
+  expect(readGoals("one").days).toEqual({
+    "2026-10-01": { spaces: 12, compact: 9 },
+    "2026-10-02": { spaces: -4, compact: -3 },
+  });
+  recordWriting("one", "", "abc", new Date(2026, 9, 3));
+  expect(readGoals("one").days["2026-10-03"]).toEqual({ spaces: 3, compact: 3 });
+});
+
+it("keeps goals and daily progress when reconnecting a moved project", () => {
+  saveGoals("old", { ...readGoals("old"), enabled: true, includeSpaces: false, daily: 500, project: 5000 });
+  recordWriting("old", "", "가 나", new Date(2026, 9, 3));
+  const goals = readGoals("old");
+  relocateGoals("old", "moved");
+  expect(readGoals("moved")).toEqual(goals);
+  expect(readGoals("old")).toEqual(goals);
+  recordWriting("moved", "", "abc", new Date(2026, 9, 4));
+  const updated = readGoals("moved");
+  relocateGoals("old", "moved");
+  expect(readGoals("moved")).toEqual(updated);
+  relocateGoals("moved", "moved");
+  expect(readGoals("moved")).toEqual(updated);
+});
+
+it("does not create goal settings from a missing source and tolerates unavailable storage", () => {
+  const setItem = vi.spyOn(localStorage, "setItem");
+  relocateGoals("missing", "new");
+  expect(setItem).not.toHaveBeenCalled();
+  vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("full"); } });
+  expect(() => relocateGoals("old", "new")).not.toThrow();
+  expect(() => recordWriting("one", "", "abc")).not.toThrow();
 });

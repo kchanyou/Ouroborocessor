@@ -4,14 +4,22 @@ import { defaultWritingPreferences, detectPlatform, loadPreferences, normalizeWr
 describe("writing defaults", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("uses 13px when no writing preferences have been saved", () => {
+  it("uses 17px when no writing preferences have been saved", () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
-    expect(loadPreferences("writing", defaultWritingPreferences).fontSize).toBe(13);
+    expect(loadPreferences("writing", defaultWritingPreferences).fontSize).toBe(17);
   });
 
   it("preserves a reader's chosen font size", () => {
     vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({ fontSize: 24 }) });
     expect(loadPreferences("writing", defaultWritingPreferences).fontSize).toBe(24);
+  });
+
+  it("preserves the old 13px setting while sanitizing corrupt numeric preferences", () => {
+    expect(normalizeWritingPreferences({ ...defaultWritingPreferences, fontSize: 13 }).fontSize).toBe(13);
+    const loaded = normalizeWritingPreferences({ ...defaultWritingPreferences, fontSize: "large" as never, lineHeight: null as never, letterSpacing: Infinity, editorWidth: -200 });
+    expect(loaded).toMatchObject({ fontSize: 17, lineHeight: 1.8, letterSpacing: 0, editorWidth: 480 });
+    expect(normalizeWritingPreferences({ ...defaultWritingPreferences, fontSize: 100, lineHeight: 10, letterSpacing: -5, editorWidth: 9000 }))
+      .toMatchObject({ fontSize: 64, lineHeight: 3.2, letterSpacing: -0.03, editorWidth: 1000 });
   });
 });
 

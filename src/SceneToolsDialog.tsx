@@ -5,7 +5,7 @@ import { writingToolsText } from "./writingToolsText";
 import { importScenes, readImportFiles, type ImportSource } from "./importManuscript";
 import { listManuscriptTrash, type ManuscriptTrashItem, type SceneOperation } from "./tauriApi";
 import type { ManuscriptNode, ProjectSnapshot } from "./types";
-import { getCharacterCount } from "./textMetrics";
+import { ImportScenePreview } from "./ImportScenePreview";
 
 export type SceneTool = "import" | "split" | "merge" | "trash" | "restore";
 export function SceneToolsDialog({ mode, project, selected, nextScene, offset, locale, onApply, onClose }: {
@@ -60,9 +60,10 @@ export function SceneToolsDialog({ mode, project, selected, nextScene, offset, l
           {sources.length > 0 && <span>{sources.map(source => source.name).join(", ")}</span>}
         </div>
         <label className="check-row"><input type="checkbox" checked={split} disabled={busy} onChange={event => setSplit(event.target.checked)} />{t.splitHeadings}</label>
-        {preview.scenes.length > 0 && <ol className="import-preview">{preview.scenes.map((scene, i) => <li key={i}>
-          <details><summary><strong>{scene.title}</strong><small>{translate(locale, "charactersShort", { count: getCharacterCount(scene.content).toLocaleString(locale) })}</small></summary><pre>{scene.content}</pre></details>
-        </li>)}</ol>}
+        {preview.scenes.length > 0 && <>
+          <p className="import-preview-hint">{t.previewHint}</p>
+          <ol className="import-preview">{preview.scenes.map((scene, i) => <ImportScenePreview key={`${i}:${scene.title}`} scene={scene} locale={locale} />)}</ol>
+        </>}
         {preview.error && <p role="alert">{preview.error}</p>}
       </> : mode === "restore" ? <>
         {!busy && !trash.length && <p>{t.emptyTrash}</p>}

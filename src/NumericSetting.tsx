@@ -15,6 +15,6 @@ export function NumericSetting({ value, label, min, max, step, onChange }: {
     onKeyDown={(e) => {
       if (e.nativeEvent.isComposing) return;
       if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-      if (e.key === "Escape") { setDraft(String(value)); }
+      if (e.key === "Escape" && draft !== String(value)) { e.preventDefault(); e.stopPropagation(); setDraft(String(value)); }
     }} />;
 }

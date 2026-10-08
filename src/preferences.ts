@@ -38,7 +38,7 @@ export const defaultAppPreferences: AppPreferences = {
 };
 
 export const defaultWritingPreferences: WritingPreferences = {
-  fontSize: 13,
+  fontSize: 17,
   lineHeight: 1.8,
   letterSpacing: 0,
   editorWidth: 720,
@@ -58,8 +58,13 @@ export function sanitizeFontName(value: string) {
 
 export function normalizeWritingPreferences(value: WritingPreferences): WritingPreferences {
   const d = defaultWritingPreferences;
+  const number = (value: unknown, fallback: number, min: number, max: number) => typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
   return {
     ...value,
+    fontSize: Math.round(number(value.fontSize, d.fontSize, 12, 64)),
+    lineHeight: number(value.lineHeight, d.lineHeight, 1, 3.2),
+    letterSpacing: number(value.letterSpacing, d.letterSpacing, -0.03, 0.12),
+    editorWidth: Math.round(number(value.editorWidth, d.editorWidth, 480, 1000)),
     fontFamily: fontPreferences.includes(value.fontFamily) ? value.fontFamily : d.fontFamily,
     customFont: typeof value.customFont === "string" ? sanitizeFontName(value.customFont) : d.customFont,
     editorTheme: editorThemes.includes(value.editorTheme) ? value.editorTheme : d.editorTheme,

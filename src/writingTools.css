@@ -8,6 +8,8 @@
 .import-preview summary { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 12px; cursor: pointer; font-size: 0.8125rem; }
 .import-preview summary small, .trash-list small, .recent-list small { color: var(--ink-secondary); font-size: 0.72rem; }
 .import-preview pre { max-height: 180px; margin: 0; padding: 8px 12px 12px; overflow: auto; color: var(--ink-secondary); font: inherit; font-size: 0.78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.import-preview-pages { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 12px; font-size: 0.75rem; }
+.import-preview-hint { color: var(--ink-secondary); font-size: 0.75rem; }
 .trash-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; }
 .trash-list li > span, .recent-list button { display: grid; min-width: 0; gap: 2px; }
 .trash-list strong, .recent-list strong { overflow: hidden; font-size: 0.8125rem; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
@@ -16,6 +18,12 @@
 .recent-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.8125rem; }
 .recent-error p { flex: 1 1 220px; margin: 0; }
+.recent-list li { display: flex; align-items: stretch; min-width: 0; }
+.recent-list .recent-open { flex: 1; min-width: 0; }
+.recent-list .recent-remove { flex: none; width: 40px; min-height: 44px; place-items: center; padding: 4px; color: var(--ink-secondary); font-size: 1.25rem; }
+.recent-hint, .recent-undo { color: var(--ink-secondary); font-size: 0.8125rem; }
+.recent-undo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; border-radius: var(--radius-sm); background: var(--accent-soft); }
+.recent-undo p { flex: 1 1 200px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
 
 .item-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-block: 12px 4px; padding-top: 12px; border-top: 1px solid var(--line); }
 

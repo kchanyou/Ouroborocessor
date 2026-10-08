@@ -1,5 +1,7 @@
 import { AppIcon as Icon } from "./AppIcon";
 import { ToolbarMore } from "./ToolbarMore";
+import { ActionMenu } from "./ActionMenu";
+import { uxText } from "./uxText";
 import type { Locale } from "./i18n";
 import type { Translate } from "./appText";
 import type { SaveState } from "./types";
@@ -10,32 +12,38 @@ export function Topbar({ t, locale, isMac, busy, hasProject, title, saveState, s
   saveState: SaveState; saveText: string; canFind: boolean;
   state: { navigator: boolean; inspector: boolean; focus: boolean; find: boolean; research: boolean };
   actions: {
-    newProject: () => void; toggleNavigator: () => void; openAnother: () => void; exportProject: () => void;
+    newProject: () => void; newScene: () => void; backupProject: () => void; toggleNavigator: () => void; openAnother: () => void; exportProject: () => void;
     projectSearch: () => void; research: () => void; toggleFind: () => void;
     toggleFocus: () => void; toggleInspector: () => void; settings: () => void;
   };
 }) {
+  const ux = uxText[locale];
   const inspectorLabel = state.inspector ? t("hideInspector") : t("showInspector");
   const focusLabel = state.focus ? t("exitFocusMode") : t("focusMode");
   // collapse: width tier where it goes into the overflow menu (workspace.css)
   const trailingTools = [
-    { id: "focus", collapse: "md", icon: "focus", label: focusLabel, title: focusLabel, pressed: state.focus, run: actions.toggleFocus },
-    { id: "inspector", collapse: "lg", icon: "inspector", label: inspectorLabel, title: inspectorLabel, pressed: state.inspector, run: actions.toggleInspector },
-    { id: "settings", collapse: "sm", icon: "settings", label: t("settings"), title: `${t("settings")} (${isMac ? "⌘," : "Ctrl+,"})`, pressed: undefined, run: actions.settings },
+    { id: "find", collapse: "md", icon: "search", label: ux.findScene, title: t("findReplace"), pressed: state.find, run: actions.toggleFind, disabled: !canFind },
+    { id: "research", collapse: "md", icon: "book", label: ux.research, title: `${t("referencePanel")} (${shortcutLabel(shortcuts.openResearch, isMac)})`, pressed: state.research, run: actions.research, disabled: !hasProject },
+    { id: "focus", collapse: "md", icon: "focus", label: focusLabel, title: focusLabel, pressed: state.focus, run: actions.toggleFocus, disabled: false },
+    { id: "inspector", collapse: "lg", icon: "inspector", label: inspectorLabel, title: inspectorLabel, pressed: state.inspector, run: actions.toggleInspector, disabled: false },
+    { id: "settings", collapse: "sm", icon: "settings", label: t("settings"), title: `${t("settings")} (${isMac ? "⌘," : "Ctrl+,"})`, pressed: undefined, run: actions.settings, disabled: false },
   ] as const;
   const sidebarLabel = state.navigator ? t("hideSidebar") : t("showSidebar");
 
   return <header inert={busy} className="topbar">
     <div className="toolbar-group toolbar-leading">
-      <button type="button" className="toolbar-button icon-only" aria-label={t("newManuscript")} title={t("newManuscript")} onClick={actions.newProject}><Icon name="add" /></button>
       <button type="button" className="toolbar-button icon-only" onClick={actions.toggleNavigator} aria-pressed={state.navigator} aria-label={sidebarLabel} title={sidebarLabel}>
         <Icon name="sidebar" />
       </button>
-      <button type="button" className="toolbar-button" onClick={actions.openAnother} title={t("openAnother")}>
-        <Icon name="folder" /><span>{t("open")}</span>
-      </button>
-      <button type="button" className="toolbar-button" disabled={!hasProject} onClick={actions.exportProject} title={t("exportProject")} aria-label={t("exportProject")}>
-        <Icon name="document" /><span>{t("exportProject")}</span>
+      <ActionMenu label={ux.project} className="project-menu">
+        <button type="button" onClick={actions.newProject}>{t("newManuscript")}</button>
+        <button type="button" onClick={actions.openAnother}>{t("openAnother")}</button>
+        <hr />
+        <button type="button" disabled={!hasProject} onClick={actions.exportProject}>{ux.exportManuscript}</button>
+        <button type="button" disabled={!hasProject} onClick={actions.backupProject}>{ux.backupProject}</button>
+      </ActionMenu>
+      <button type="button" className="toolbar-button new-scene-button" disabled={!hasProject} onClick={actions.newScene} aria-label={ux.newScene}>
+        <Icon name="add" /><span>{ux.newScene}</span>
       </button>
     </div>
 
@@ -45,12 +53,10 @@ export function Topbar({ t, locale, isMac, busy, hasProject, title, saveState, s
     </div>
 
     <nav aria-label={t("viewTools")} className="toolbar-group toolbar-trailing">
-      <button type="button" className="toolbar-button icon-only" disabled={!hasProject} aria-label={t("projectSearch")} title={`${t("projectSearch")} (${isMac ? "⌘⇧F" : "Ctrl+Shift+F"})`} onClick={actions.projectSearch}><Icon name="searchAll" /></button>
-      <button type="button" className="toolbar-button icon-only" disabled={!hasProject} aria-label={t("referencePanel")} title={`${t("referencePanel")} (${shortcutLabel(shortcuts.openResearch, isMac)})`} aria-pressed={state.research} onClick={actions.research}><Icon name="book" /></button>
-      <button type="button" className="toolbar-button icon-only" disabled={!canFind} aria-label={t("findReplace")} title={t("findReplace")} aria-pressed={state.find} onClick={actions.toggleFind}><Icon name="search" /></button>
-      {trailingTools.map((tool) => <button key={tool.id} type="button" className={`toolbar-button icon-only overflow-${tool.collapse}`} onClick={tool.run} aria-pressed={tool.pressed} aria-label={tool.label} title={tool.title}><Icon name={tool.icon} /></button>)}
+      <button type="button" className="toolbar-button" disabled={!hasProject} aria-label={t("projectSearch")} title={`${t("projectSearch")} (${isMac ? "⌘⇧F" : "Ctrl+Shift+F"})`} onClick={actions.projectSearch}><Icon name="searchAll" /><span>{ux.searchProject}</span></button>
+      {trailingTools.map((tool) => <button key={tool.id} type="button" disabled={tool.disabled} className={`toolbar-button ${tool.id === "find" ? "" : "icon-only"} overflow-${tool.collapse}`} onClick={tool.run} aria-pressed={tool.pressed} aria-label={tool.label} title={tool.title}><Icon name={tool.icon} />{tool.id === "find" && <span>{tool.label}</span>}</button>)}
       <ToolbarMore locale={locale}>
-        {trailingTools.map((tool) => <button key={tool.id} type="button" className={`toolbar-button overflow-${tool.collapse}`} onClick={tool.run} aria-pressed={tool.pressed} title={tool.title}><Icon name={tool.icon} /><span>{tool.label}</span></button>)}
+        {trailingTools.map((tool) => <button key={tool.id} type="button" disabled={tool.disabled} className={`toolbar-button overflow-${tool.collapse}`} onClick={tool.run} aria-pressed={tool.pressed} title={tool.title}><Icon name={tool.icon} /><span>{tool.label}</span></button>)}
       </ToolbarMore>
     </nav>
   </header>;

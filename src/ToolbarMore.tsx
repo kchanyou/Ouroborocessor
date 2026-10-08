@@ -14,7 +14,9 @@ export function ToolbarMore({ locale, children }: { locale: Locale; children: Re
     document.addEventListener("pointerdown", closeOutside);
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, []);
-  return <details ref={ref} className="toolbar-more" onKeyDown={(event) => {
+  return <details ref={ref} className="toolbar-more" onBlur={event => {
+    if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+  }} onKeyDown={(event) => {
     if (event.key === "Escape") {
       event.stopPropagation();
       if (ref.current) ref.current.open = false;

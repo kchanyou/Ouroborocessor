@@ -45,7 +45,6 @@ import {
   detectPlatform,
   loadPreferences,
   savePreferences,
-  type WritingPreferences,
 } from "./preferences";
 import { getCharacterCount, getTextMetrics } from "./textMetrics";
 import { FindPanel } from "./FindPanel";
@@ -64,7 +63,7 @@ import { applySceneOperation, listResourceCards, type SceneOperation } from "./t
 import { writingToolsText } from "./writingToolsText";
 import "./writingTools.css";
 import { WritingGoals } from "./WritingGoalsPanel";
-import { recordWriting } from "./writingGoals";
+import { recordWriting, relocateGoals, WritingGoalRecorder } from "./writingGoals";
 import { matchesShortcut, shortcutLabel, shortcuts } from "./shortcuts";
 import { isSupportedImageFile, logicalDropPoint, supportedImagePaths } from "./imageDrop";
 import { removeImage, updateImageAlt } from "./manuscriptImages";
@@ -81,6 +80,7 @@ import { treeKeyboardAction } from "./treeKeyboard";
 import { mergeProjectStructure, persistProjectScenes, ProjectSceneSaveError } from "./projectSave";
 import type { ManuscriptNode, NodeKind, ProjectSnapshot, SaveState } from "./types";
 import { storageKeys } from "./storageKeys";
+import { EditableTitle } from "./EditableTitle";
 import {
   flattenTree,
   type DropPlacement,
@@ -137,7 +137,7 @@ function App() {
   }, [layout, showNavigator, showInspector, focusMode]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState<"document" | "backup" | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   // shared by both panes, each pane has its own key order
   const [referenceTabs, setReferenceTabs] = useState<Array<ReferenceTab & { card: ResourceCard | null }>>([]);
@@ -182,6 +182,7 @@ function App() {
   const isComposing = useRef(false);
   const previousPanels = useRef({ navigator: true, inspector: true });
   const editorRef = useRef<EditorPort>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const sideEditorRef = useRef<EditorPort>(null);
   const closeCoordinator = useRef(new CloseSaveCoordinator());
   const nativeRecovery = useRef(new AsyncDraftMirror());
@@ -679,6 +680,7 @@ function App() {
       if (matchesShortcut(event, shortcuts.openResearch, isMac) && project) { event.preventDefault(); openReference(); return; }
       if (matchesShortcut(event, shortcuts.splitRight, isMac) && activeTabKey) { event.preventDefault(); void openToSide(activeTabKey); return; }
       if (matchesShortcut(event, shortcuts.toggleSidebar, isMac)) { event.preventDefault(); toggleNavigator(); return; }
+      if (matchesShortcut(event, shortcuts.renameTitle, isMac) && selectedScene && !activeReferenceKey) { event.preventDefault(); focusTitle(); return; }
       if ((isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) && !event.shiftKey && !event.altKey && /^[1-9]$/.test(event.key)) {
         const key = tabOrder[Number(event.key) - 1];
         if (key) { event.preventDefault(); activateTab(key); }
@@ -710,17 +712,14 @@ function App() {
 
   // Counting a long scene is expensive, so goal progress is recorded once typing pauses,
   // as one change from the first unrecorded text to the latest text per scene.
-  const pendingGoalEdits = useRef(new Map<string, { path: string; before: string; after: string }>());
+  const pendingGoalEdits = useRef(new WritingGoalRecorder());
   const goalTimer = useRef<number | undefined>(undefined);
   const flushGoalRecords = useCallback(() => {
     window.clearTimeout(goalTimer.current);
-    for (const { path, before, after } of pendingGoalEdits.current.values()) recordWriting(path, before, after);
-    pendingGoalEdits.current.clear();
+    pendingGoalEdits.current.flush();
   }, []);
   function queueGoalRecord(path: string, sceneId: string, before: string, after: string) {
-    const key = JSON.stringify([path, sceneId]);
-    const pending = pendingGoalEdits.current.get(key);
-    pendingGoalEdits.current.set(key, { path, before: pending?.before ?? before, after });
+    pendingGoalEdits.current.queue(path, sceneId, before, after);
     window.clearTimeout(goalTimer.current);
     goalTimer.current = window.setTimeout(flushGoalRecords, 1500);
   }
@@ -802,6 +801,11 @@ function App() {
     finally { setCopyBusy(false); }
   }
 
+  function focusTitle() {
+    titleInputRef.current?.focus();
+    titleInputRef.current?.select();
+  }
+
   function updateSelectedMetadata(changes: Partial<Pick<ManuscriptNode, "title" | "status" | "synopsis">>) {
     if (!selectedNode) return;
     setProject((current) => current ? {
@@ -839,16 +843,18 @@ function App() {
   }
 
   async function openRecentProject(path: string) {
-    await persistForExport();
     await acceptProjectWithRecovery(await openProject(path));
   }
 
   async function locateProject(oldPath?: string) {
-    await persistForExport();
     const path = await chooseFolder(t("chooseStoryFolder"));
     if (!path) return false;
     const next = await openProject(path);
-    if (oldPath) relocateSession(oldPath, next);
+    if (oldPath) {
+      flushGoalRecords();
+      relocateSession(oldPath, next);
+      relocateGoals(oldPath, next.projectPath);
+    }
     await acceptProjectWithRecovery(next);
     return true;
   }
@@ -1242,10 +1248,6 @@ function App() {
     if (isCompactViewport()) setShowNavigator(false);
   }
 
-  function updateWritingPreference<K extends keyof WritingPreferences>(key: K, value: WritingPreferences[K]) {
-    setWritingPreferences((current) => ({ ...current, [key]: value }));
-  }
-
   const saveLabel: Record<SaveState, string> = {
     idle: "",
     dirty: t("edited"),
@@ -1254,11 +1256,11 @@ function App() {
     error: t("saveError"),
   };
   const commandText = ({
-    ko: { image: "이미지 추가", research: "레퍼런스 열기", close: "현재 탭 닫기", next: "다음 탭", previous: "이전 탭", sidebar: "원고 목록 보기/숨기기", settings: "설정 열기" },
-    en: { image: "Add image", research: "Open research", close: "Close current tab", next: "Next tab", previous: "Previous tab", sidebar: "Show or hide outline", settings: "Open settings" },
-    es: { image: "Añadir imagen", research: "Abrir referencias", close: "Cerrar pestaña actual", next: "Pestaña siguiente", previous: "Pestaña anterior", sidebar: "Mostrar u ocultar índice", settings: "Abrir ajustes" },
-    ja: { image: "画像を追加", research: "資料を開く", close: "現在のタブを閉じる", next: "次のタブ", previous: "前のタブ", sidebar: "原稿リストの表示を切り替え", settings: "設定を開く" },
-    zh: { image: "添加图片", research: "打开资料", close: "关闭当前标签页", next: "下一个标签页", previous: "上一个标签页", sidebar: "显示或隐藏文稿列表", settings: "打开设置" },
+    ko: { rename: "제목 바꾸기", image: "이미지 추가", research: "레퍼런스 열기", close: "현재 탭 닫기", next: "다음 탭", previous: "이전 탭", sidebar: "원고 목록 보기/숨기기", settings: "설정 열기" },
+    en: { rename: "Rename", image: "Add image", research: "Open research", close: "Close current tab", next: "Next tab", previous: "Previous tab", sidebar: "Show or hide outline", settings: "Open settings" },
+    es: { rename: "Cambiar título", image: "Añadir imagen", research: "Abrir referencias", close: "Cerrar pestaña actual", next: "Pestaña siguiente", previous: "Pestaña anterior", sidebar: "Mostrar u ocultar índice", settings: "Abrir ajustes" },
+    ja: { rename: "タイトルを変更", image: "画像を追加", research: "資料を開く", close: "現在のタブを閉じる", next: "次のタブ", previous: "前のタブ", sidebar: "原稿リストの表示を切り替え", settings: "設定を開く" },
+    zh: { rename: "重命名", image: "添加图片", research: "打开资料", close: "关闭当前标签页", next: "下一个标签页", previous: "上一个标签页", sidebar: "显示或隐藏文稿列表", settings: "打开设置" },
   })[locale];
   const nextSibling = siblings[siblingIndex + 1];
   const nextMergeScene = nextSibling?.kind === "scene" ? nextSibling : null;
@@ -1278,6 +1280,7 @@ function App() {
       ...sceneCommands,
       { id: "recent-projects", title: features.recentProjects, run: () => setRecentProjectsOpen(true) },
       { id: "reopen-tab", title: features.reopenTab, shortcut: shortcutLabel(shortcuts.reopenTab, isMac), run: () => { void reopenClosedTab(); } },
+      ...(selectedScene && !activeReferenceKey ? [{ id: "rename", title: commandText.rename, shortcut: shortcutLabel(shortcuts.renameTitle, isMac), run: focusTitle }] : []),
       ...(selectedScene && !activeReferenceKey ? [{ id: "image", title: commandText.image, shortcut: shortcutLabel(shortcuts.insertImage, isMac), run: () => imageInputRef.current?.click() }] : []),
       { id: "research", title: commandText.research, shortcut: shortcutLabel(shortcuts.openResearch, isMac), run: () => openReference() },
       { id: "close", title: commandText.close, shortcut: shortcutLabel(shortcuts.closeTab, isMac), run: () => { void closeTab(activeTabKey ?? ""); } },
@@ -1303,8 +1306,9 @@ function App() {
         saveState={saveState} saveText={saveLabel[saveState]} canFind={Boolean(selectedScene)}
         state={{ navigator: showNavigator, inspector: showInspector, focus: focusMode, find: findOpen, research: Boolean(activeReferenceKey) || sideReferences.length > 0 }}
         actions={{
-          newProject: () => { void persistSelected().then(() => setNewProjectOpen(true)).catch((reason) => setError(localizedError(reason, locale))); },
-          toggleNavigator, openAnother: () => setRecentProjectsOpen(true), exportProject: () => setExportOpen(true),
+          newProject: () => { void persistForExport().then(() => setNewProjectOpen(true)).catch((reason) => setError(localizedError(reason, locale))); },
+          newScene: () => { void handleAdd("scene"); }, backupProject: () => setExportOpen("backup"),
+          toggleNavigator, openAnother: () => setRecentProjectsOpen(true), exportProject: () => setExportOpen("document"),
           projectSearch: () => setProjectSearchOpen(true), research: () => openReference(), toggleFind: () => setFindOpen((open) => !open),
           toggleFocus: toggleFocusMode, toggleInspector, settings: () => setSettingsOpen(true),
         }} />
@@ -1343,7 +1347,9 @@ function App() {
             <>
               <header className="editor-heading">
                 <p>{t("sceneNumber", { number: sceneNumber })}</p>
-                <h1 id="item-title">{selectedScene.title}</h1>
+                <EditableTitle key={`${project?.projectPath}:${selectedScene.id}`} id="item-title" value={selectedScene.title} label={commandText.rename}
+                  inputRef={titleInputRef} onChange={title => updateSelectedMetadata({ title })} onCommit={() => void saveSelectedMetadata()}
+                  onDone={() => editorRef.current?.focus()} />
                 <span>{statusLabel(selectedScene.status, t)}</span>
               </header>
               {findOpen && <FindPanel key={`${project?.projectPath}:${selectedScene.id}`} content={selectedScene.content} locale={locale}
@@ -1418,12 +1424,12 @@ function App() {
             onRemoveImage={removeSelectedImage}
             selectedNode={selectedNode} selectedScene={selectedScene} position={{ index: siblingIndex, count: siblings.length }}
             onOpenHistory={() => setHistoryOpen(true)} onMetadataChange={updateSelectedMetadata} onMetadataCommit={() => void saveSelectedMetadata()}
-            metrics={metrics} writing={writingPreferences} onWritingChange={updateWritingPreference} />
+            metrics={metrics} />
         )}
       </div>
 
       {sceneTool && project && <SceneToolsDialog mode={sceneTool.mode} project={project} selected={selectedNode} nextScene={nextMergeScene} offset={sceneTool.offset} locale={locale} onApply={performSceneOperation} onClose={() => setSceneTool(null)} />}
-      {recentProjectsOpen && <RecentProjectsDialog locale={locale} onOpen={openRecentProject} onLocate={locateProject} onClose={() => setRecentProjectsOpen(false)} />}
+      {recentProjectsOpen && <RecentProjectsDialog locale={locale} beforeOpen={persistForExport} onOpen={openRecentProject} onLocate={locateProject} onClose={() => setRecentProjectsOpen(false)} />}
       {newProjectOpen && <NewProjectDialog locale={locale} onClose={() => setNewProjectOpen(false)} onCreated={(next) => { acceptProject(next); setNewProjectOpen(false); }} />}
       {projectSearchOpen && project && <Suspense fallback={<div className="dialog-backdrop" role="status"><span>{t("working")}</span></div>}><ProjectSearchDialog project={project} locale={locale} onNavigate={navigateSearchResult} onApply={runReplacement} onUndo={undoReplacement} canUndo={batchUndo?.path === project.projectPath && !!batchUndo.changes.length} onRestore={async (journalId, sceneId) => {
         if (historyBusyRef.current) throw new Error("BATCH_BUSY");
@@ -1439,7 +1445,7 @@ function App() {
       {settingsOpen && <SettingsDialog preferences={appPreferences} setPreferences={setAppPreferences} onClose={closeSettings} t={t}
         editorSection={<EditorAppearanceSettings locale={locale} value={writingPreferences} onChange={setWritingPreferences} />}
         workspaceSection={<WorkspaceControls locale={locale} value={{ ...layout, navigator: showNavigator, inspector: showInspector }} onChange={(next) => { setLayout(next); setShowNavigator(next.navigator); setShowInspector(next.inspector); setFocusMode(false); }} />} />}
-      {exportOpen && project && <ExportDialog project={project} selectedId={selectedNodeId} persist={persistForExport} locale={locale} onClose={() => setExportOpen(false)} />}
+      {exportOpen && project && <ExportDialog project={project} selectedId={selectedNodeId} persist={persistForExport} locale={locale} purpose={exportOpen} onClose={() => setExportOpen(null)} />}
       {historyOpen && project && selectedScene && <Suspense fallback={<div className="dialog-backdrop" role="status"><span>{t("working")}</span></div>}><HistoryDialog projectPath={project.projectPath} scene={selectedScene} locale={locale} persist={persistSelected} onRestored={(next) => { acceptProject(next); setSelectedNodeId(next.nodes.at(-1)?.id ?? null); }} onClose={() => setHistoryOpen(false)} /></Suspense>}
       {paletteMode && <CommandPalette mode={paletteMode} locale={locale} items={paletteItems} onClose={() => setPaletteMode(null)} />}
       {dragGhost && (

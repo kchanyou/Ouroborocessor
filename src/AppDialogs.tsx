@@ -25,6 +25,9 @@ import {
 } from "./tauriApi";
 import type { ProjectSnapshot } from "./types";
 import { HelpDetails } from "./HelpDetails";
+import { uxText } from "./uxText";
+import { manuscriptFormats, readExportFormat, rememberExportFormat } from "./exportPreferences";
+import { useModalDialog } from "./useModalDialog";
 
 type NewProjectDialogProps = {
   locale: Locale;
@@ -92,7 +95,6 @@ export function NewProjectDialog({ locale, onCreated, onClose }: NewProjectDialo
 }
 
 type ExportFormat = "backup" | DocumentFormat | "pdf";
-const exportFormats: ExportFormat[] = ["backup", "docx", "hwpx", "odt", "pdf", "html", "txt"];
 const formatText = {
   docx: ["formatDocx", "docxDescription"], hwpx: ["formatHwpx", "hwpxDescription"], odt: ["formatOdt", "odtDescription"],
   pdf: ["formatPdf", "pdfDescription"], html: ["formatHtml", "htmlDescription"], txt: ["formatTxt", "txtDescription"],
@@ -102,6 +104,7 @@ const formatText = {
 const pagedFormats: ExportFormat[] = ["docx", "hwpx", "odt", "pdf"];
 
 type ExportDialogProps = {
+  purpose?: "document" | "backup";
   project: ProjectSnapshot;
   selectedId: string | null;
   persist: () => Promise<void>;
@@ -109,13 +112,14 @@ type ExportDialogProps = {
   onClose: () => void;
 };
 
-export function ExportDialog({ project, selectedId, persist, locale, onClose }: ExportDialogProps) {
+export function ExportDialog({ project, selectedId, persist, locale, purpose = "document", onClose }: ExportDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
-  const [format, setFormat] = useState<ExportFormat>("backup");
+  const [format, setFormat] = useState<ExportFormat>(() => purpose === "backup" ? "backup" : readExportFormat());
+  const ux = uxText[locale];
   const [rootId, setRootId] = useState<string | null>(null);
   const [paperSize, setPaperSize] = useState<PaperSize>("a4");
   const [marginPreset, setMarginPreset] = useState<MarginPreset>("normal");
@@ -137,6 +141,7 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
       if (format === "pdf") {
         const title = rootId ? project.nodes.find((node) => node.id === rootId)?.title ?? project.title : project.title;
         await printManuscript(project.projectPath, rootId, paperSize, marginPreset, t("pdfWindowTitle", { title }));
+        rememberExportFormat(format);
         setResult(t("pdfOpened"));
         return;
       }
@@ -146,6 +151,7 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
         ? await exportProject(project.projectPath, destination)
         : await exportDocument(project.projectPath, destination, rootId, format, paperSize, marginPreset);
       setResult(output);
+      if (format !== "backup") rememberExportFormat(format);
     } catch (reason) {
       if (reason instanceof ProjectSceneSaveError) {
         const detail = reason.stage === "recovery"
@@ -179,8 +185,12 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
       }}
     >
       <div className="new-project-panel">
-        <h2 id="export-title">{t("exportProject")}</h2>
-        <label htmlFor="export-format">{t("exportFormat")}</label>
+        <h2 id="export-title">{format === "backup" ? ux.backupProject : ux.exportManuscript}</h2>
+        <div className="export-purpose" role="group" aria-label={t("exportProject")}>
+          <button type="button" disabled={busy} aria-pressed={format !== "backup"} onClick={() => { if (format === "backup") { setFormat(readExportFormat()); setResult(""); setError(""); } }}>{ux.exportManuscript}</button>
+          <button type="button" disabled={busy} aria-pressed={format === "backup"} onClick={() => { setFormat("backup"); setResult(""); setError(""); }}>{ux.backupProject}</button>
+        </div>
+        {format !== "backup" && <><label htmlFor="export-format">{t("exportFormat")}</label>
         <select
           id="export-format"
           disabled={busy}
@@ -191,8 +201,8 @@ export function ExportDialog({ project, selectedId, persist, locale, onClose }: 
             setError("");
           }}
         >
-          {exportFormats.map((value) => <option key={value} value={value}>{t(formatText[value][0])}</option>)}
-        </select>
+          {manuscriptFormats.map((value) => <option key={value} value={value}>{t(formatText[value][0])}</option>)}
+        </select></>}
         <p id="export-description">{t(formatText[format][1])}</p>
         {format === "backup" && <HelpDetails locale={locale}>{t("exportDescriptionDetails")}</HelpDetails>}
         {pagedFormats.includes(format) && <HelpDetails locale={locale}>{t("documentDescriptionDetails")}</HelpDetails>}
@@ -285,50 +295,22 @@ type SettingsDialogProps = {
 };
 
 export function SettingsDialog({ preferences, setPreferences, onClose, t, workspaceSection, editorSection }: SettingsDialogProps) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    closeRef.current?.focus();
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled])",
-      ));
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  const dialogRef = useModalDialog();
 
   function update<K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) {
     setPreferences((current) => ({ ...current, [key]: value }));
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation">
-      <section
+      <dialog
         ref={dialogRef}
         className="settings-dialog"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="settings-title"
+        onCancel={event => { event.preventDefault(); onClose(); }}
       >
         <header className="settings-header">
           <h2 id="settings-title">{t("settings")}</h2>
-          <button ref={closeRef} type="button" className="dialog-close" onClick={onClose} aria-label={t("close")}>
+          <button autoFocus type="button" className="dialog-close" onClick={onClose} aria-label={t("close")}>
             ×
           </button>
         </header>
@@ -377,7 +359,6 @@ export function SettingsDialog({ preferences, setPreferences, onClose, t, worksp
             <p>{t("storageDescription")}</p>
           </section>
         </div>
-      </section>
-    </div>
+      </dialog>
   );
 }

@@ -2,9 +2,9 @@ import type { ManuscriptNode } from "./types";
 import type { Locale } from "./i18n";
 import type { Translate } from "./appText";
 import { imageInspectorText } from "./appText";
-import type { WritingPreferences } from "./preferences";
 import type { getTextMetrics } from "./textMetrics";
-import { NumericSetting } from "./NumericSetting";
+import { ActionMenu } from "./ActionMenu";
+import { uxText } from "./uxText";
 import { PanelResize } from "./WorkspaceControls";
 import { layoutText } from "./workspaceLayout";
 import type { ReactNode } from "react";
@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 type Metadata = Partial<Pick<ManuscriptNode, "title" | "status" | "synopsis">>;
 
 export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDraft, onAltDraftChange, onAltCommit, onReplaceImage, onRemoveImage,
-  selectedNode, selectedScene, position, onOpenHistory, onMetadataChange, onMetadataCommit, metrics, writing, onWritingChange, goalsSection, itemActions }: {
+  selectedNode, selectedScene, position, onOpenHistory, onMetadataChange, onMetadataCommit, metrics, goalsSection, itemActions }: {
   goalsSection?: ReactNode;
   /** Split, merge and trash commands for the selected item. */
   itemActions?: Array<{ id: string; label: string; run: () => void }>;
@@ -22,7 +22,6 @@ export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDr
   selectedNode: ManuscriptNode | null; selectedScene: ManuscriptNode | null; position: { index: number; count: number };
   onOpenHistory: () => void; onMetadataChange: (changes: Metadata) => void; onMetadataCommit: () => void;
   metrics: ReturnType<typeof getTextMetrics>;
-  writing: WritingPreferences; onWritingChange: <K extends keyof WritingPreferences>(key: K, value: WritingPreferences[K]) => void;
 }) {
   const imageT = imageInspectorText[locale];
   return (
@@ -78,7 +77,9 @@ export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDr
           )}
           <div className="item-actions">
             {selectedScene && <button type="button" onClick={onOpenHistory}>{t("sceneHistory")}</button>}
-            {itemActions?.map((action) => <button type="button" key={action.id} onClick={action.run}>{action.label}</button>)}
+            {!!itemActions?.length && <ActionMenu label={uxText[locale].sceneActions}>
+              {itemActions.map(action => <button type="button" className={action.id === "trash" ? "danger-action" : undefined} key={action.id} onClick={action.run}>{action.label}</button>)}
+            </ActionMenu>}
           </div>
         </details>
       )}
@@ -96,22 +97,6 @@ export function InspectorPanel({ locale, t, isMac, width, onResize, image, altDr
             </dl>
           </details>
 
-          <details className="inspector-section">
-            <summary>{t("writingView")}</summary>
-            <fieldset className="typography-settings">
-              <legend className="sr-only">{t("writingView")}</legend>
-              <label htmlFor="font-size">{t("fontSize")} <output>{writing.fontSize}px</output></label>
-              <input id="font-size" type="range" min="12" max="64" step="1" value={writing.fontSize} onChange={(event) => onWritingChange("fontSize", Number(event.target.value))} />
-              <NumericSetting label={t("fontSize")} value={writing.fontSize} min={12} max={64} step={1} onChange={(value) => onWritingChange("fontSize", value)} />
-              <label htmlFor="line-height">{t("lineHeight")} <output>{writing.lineHeight.toFixed(2)}</output></label>
-              <input id="line-height" type="range" min="1" max="3.2" step="0.05" value={writing.lineHeight} onChange={(event) => onWritingChange("lineHeight", Number(event.target.value))} />
-              <NumericSetting label={t("lineHeight")} value={writing.lineHeight} min={1} max={3.2} step={0.05} onChange={(value) => onWritingChange("lineHeight", value)} />
-              <label htmlFor="letter-spacing">{t("letterSpacing")} <output>{writing.letterSpacing.toFixed(2)}em</output></label>
-              <input id="letter-spacing" type="range" min="-0.03" max="0.12" step="0.01" value={writing.letterSpacing} onChange={(event) => onWritingChange("letterSpacing", Number(event.target.value))} />
-              <label htmlFor="editor-width">{t("editorWidth")} <output>{writing.editorWidth}px</output></label>
-              <input id="editor-width" type="range" min="480" max="1000" step="20" value={writing.editorWidth} onChange={(event) => onWritingChange("editorWidth", Number(event.target.value))} />
-            </fieldset>
-          </details>
         </>
       )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "./i18n";
 import { searchText } from "./quickOpen";
+import { useModalDialog } from "./useModalDialog";
 
 export type PaletteItem = { id: string; title: string; detail?: string; shortcut?: string; run: () => void };
 
@@ -16,35 +17,43 @@ export function CommandPalette({ mode, locale, items, onClose }: { mode: "comman
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const dialog = useModalDialog();
   const t = text[locale];
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase(locale);
     return needle ? items.filter(item => searchText(`${item.title} ${item.detail ?? ""}`, needle)) : items;
   }, [items, locale, query]);
-  useEffect(() => { input.current?.focus(); }, []);
   useEffect(() => { setActive(0); }, [query]);
   const activeIndex = Math.max(0, Math.min(active, filtered.length - 1));
   useEffect(() => { document.getElementById(`palette-item-${activeIndex}`)?.scrollIntoView({ block: "nearest" }); }, [activeIndex]);
-  const run = (item: PaletteItem | undefined) => { if (!item) return; onClose(); item.run(); };
-  return <div className="command-palette-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="command-palette" role="dialog" aria-modal="true" aria-label={mode === "commands" ? t.commands : t.files}>
-      <input ref={input} value={query} role="combobox" aria-label={mode === "commands" ? t.commandPlaceholder : t.filePlaceholder} aria-expanded="true" aria-controls="palette-results" aria-activedescendant={filtered.length ? `palette-item-${activeIndex}` : undefined} placeholder={mode === "commands" ? t.commandPlaceholder : t.filePlaceholder}
+  const close = () => { dialog.current?.close(); onClose(); };
+  const run = (item: PaletteItem | undefined) => { if (!item) return; close(); item.run(); };
+  return <dialog ref={dialog} className="command-palette" aria-label={mode === "commands" ? t.commands : t.files}
+    onCancel={event => { event.preventDefault(); close(); }}
+    onMouseDown={event => {
+      if (event.target !== event.currentTarget) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+    }} onKeyDown={event => {
+      // Results use aria-activedescendant; the combobox is the only tab stop.
+      if (event.key === "Tab") { event.preventDefault(); input.current?.focus(); }
+    }}>
+      <input ref={input} autoFocus value={query} role="combobox" aria-label={mode === "commands" ? t.commandPlaceholder : t.filePlaceholder} aria-expanded="true" aria-controls="palette-results" aria-activedescendant={filtered.length ? `palette-item-${activeIndex}` : undefined} placeholder={mode === "commands" ? t.commandPlaceholder : t.filePlaceholder}
         onChange={event => setQuery(event.target.value)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing) return;
-          if (event.key === "Escape") { event.preventDefault(); onClose(); }
+          if (event.key === "Escape") { event.preventDefault(); close(); }
           if (event.key === "ArrowDown") { event.preventDefault(); setActive(Math.max(0, Math.min(filtered.length - 1, activeIndex + 1))); }
           if (event.key === "ArrowUp") { event.preventDefault(); setActive(Math.max(0, activeIndex - 1)); }
           if (event.key === "Enter") { event.preventDefault(); run(filtered[activeIndex]); }
         }} />
       <div className="command-list" role="listbox" id="palette-results">
-        {filtered.map((item, index) => <button type="button" role="option" id={`palette-item-${index}`} aria-selected={index === activeIndex} key={item.id}
+        {filtered.map((item, index) => <button type="button" role="option" tabIndex={-1} id={`palette-item-${index}`} aria-selected={index === activeIndex} key={item.id}
           onMouseEnter={() => setActive(index)} onClick={() => run(item)}>
           <span><strong>{item.title}</strong>{item.detail && <small>{item.detail}</small>}</span>
           {item.shortcut && <kbd>{item.shortcut}</kbd>}
         </button>)}
         {!filtered.length && <p className="command-empty">{t.empty}</p>}
       </div>
-    </section>
-  </div>;
+  </dialog>;
 }

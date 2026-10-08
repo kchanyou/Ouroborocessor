@@ -1,5 +1,8 @@
 import type { CSSProperties } from "react";
 import type { Locale } from "./i18n";
+import { translate } from "./i18n";
+import { NumericSetting } from "./NumericSetting";
+import { uxText } from "./uxText";
 import { editorThemes, fontPreferences, sanitizeFontName, type EditorTheme, type FontPreference, type WritingPreferences } from "./preferences";
 
 type Palette = { page: string; ink: string; muted: string; dark: boolean };
@@ -85,9 +88,23 @@ export function EditorAppearanceSettings({ locale, value, onChange }: {
   locale: Locale; value: WritingPreferences; onChange: (next: WritingPreferences) => void;
 }) {
   const t = editorText[locale];
+  const ux = uxText[locale];
   const set = <K extends keyof WritingPreferences>(key: K, next: WritingPreferences[K]) => onChange({ ...value, [key]: next });
   return <section className="settings-section editor-appearance" aria-labelledby="editor-settings">
-    <h3 id="editor-settings">{t.title}</h3>
+    <h3 id="editor-settings">{ux.writingSettings}</h3>
+    <div className="writing-preview" style={{ ...editorAppearanceStyle(value), fontFamily: value.fontFamily === "custom" ? customFontStack(value.customFont) : fontStacks[value.fontFamily], fontSize: value.fontSize, lineHeight: value.lineHeight, letterSpacing: `${value.letterSpacing}em` }}>{ux.sample}</div>
+    <p className="writing-settings-hint">{ux.writingHint}</p>
+    <fieldset className="writing-dimensions">
+      <legend>{translate(locale, "writingView")}</legend>
+      {([
+        ["fontSize", "fontSize", 12, 64, 1], ["lineHeight", "lineHeight", 1, 3.2, 0.05],
+        ["letterSpacing", "letterSpacing", -0.03, 0.12, 0.01], ["editorWidth", "editorWidth", 480, 1000, 20],
+      ] as const).map(([key, label, min, max, step]) => <div className="writing-dimension" key={key}>
+        <label htmlFor={`writing-${key}`}>{translate(locale, label)}</label>
+        <NumericSetting label={translate(locale, label)} value={value[key]} min={min} max={max} step={step} onChange={next => set(key, next)} />
+        <input id={`writing-${key}`} aria-label={translate(locale, label)} type="range" min={min} max={max} step={step} value={value[key]} onChange={event => set(key, Number(event.target.value))} />
+      </div>)}
+    </fieldset>
     <fieldset className="choice-group">
       <legend>{t.theme}</legend>
       <div className="theme-swatches">

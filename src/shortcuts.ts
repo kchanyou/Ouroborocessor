@@ -1,4 +1,4 @@
-export type ShortcutCommand = "quickOpen" | "commandPalette" | "closeTab" | "reopenTab" | "nextTab" | "previousTab" | "insertImage" | "openResearch" | "toggleSidebar" | "splitRight";
+export type ShortcutCommand = "quickOpen" | "commandPalette" | "closeTab" | "reopenTab" | "nextTab" | "previousTab" | "insertImage" | "openResearch" | "toggleSidebar" | "splitRight" | "renameTitle";
 
 export type Shortcut = { key: string; mod?: boolean; ctrl?: boolean; shift?: boolean };
 
@@ -13,6 +13,7 @@ export const shortcuts: Record<ShortcutCommand, Shortcut> = {
   openResearch: { key: "r", mod: true, shift: true },
   toggleSidebar: { key: "b", mod: true },
   splitRight: { key: "\\", mod: true },
+  renameTitle: { key: "F2" },
 };
 
 export function matchesShortcut(event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">, shortcut: Shortcut, isMac: boolean) {

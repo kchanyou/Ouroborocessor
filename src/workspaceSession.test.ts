@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { insertTab, normalizeSession, readPosition, readSession, recentProjects, relocateSession, rememberProject, savePosition, saveSession } from "./workspaceSession";
+import { forgetProject, insertTab, normalizeSession, readPosition, readSession, recentProjects, relocateSession, rememberProject, restoreRecentProject, savePosition, saveSession } from "./workspaceSession";
 import { defaultLayout } from "./workspaceLayout";
 import type { ProjectSnapshot } from "./types";
 
@@ -60,9 +60,67 @@ it("reopens at the original index without duplicating an already open tab", () =
   expect(insertTab([], "b", 8)).toEqual(["b"]);
 });
 
+it("keeps the newer session and positions when reconnecting an already opened destination", () => {
+  const moved = { ...project, projectPath: "/moved.story" };
+  const latest = { ...session, main: ["node:g"], active: "node:g", collapsed: [], recent: ["g", "s"] };
+  const oldPosition = { anchor: 3, head: 4, top: 40, left: 0 };
+  const latestPosition = { anchor: 1, head: 2, top: 200, left: 10 };
+  saveSession(project.projectPath, session);
+  savePosition(project.projectPath, "s", "main", oldPosition);
+  savePosition(project.projectPath, "s", "side", oldPosition);
+  saveSession(moved.projectPath, latest);
+  savePosition(moved.projectPath, "s", "main", latestPosition);
+  relocateSession(project.projectPath, moved);
+  expect(readSession(moved)).toEqual(latest);
+  expect(readPosition(moved.projectPath, "s", "main", 6)).toEqual(latestPosition);
+  expect(readPosition(moved.projectPath, "s", "side", 6)).toEqual(oldPosition);
+  expect(recentProjects()[0].path).toBe(moved.projectPath);
+});
+
+it("recovers a corrupt destination session and clamps positions to shortened content", () => {
+  const moved = { ...project, projectPath: "/moved.story", nodes: project.nodes.map(node => ({ ...node, content: "ab" })) };
+  saveSession(project.projectPath, session);
+  savePosition(project.projectPath, "s", "main", { anchor: 4, head: 6, top: 40, left: 0 });
+  localStorage.setItem("ouroborocessor.session.v1:/moved.story", "invalid JSON");
+  relocateSession(project.projectPath, moved);
+  expect(readSession(moved)).toEqual(session);
+  expect(readPosition(moved.projectPath, "s", "main", 2)).toEqual({ anchor: 2, head: 2, top: 40, left: 0 });
+});
+
 it("tolerates blocked optional storage", () => {
   vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("full"); } });
   expect(() => saveSession(project.projectPath, session)).not.toThrow();
   expect(readSession(project)).toBeNull();
   expect(recentProjects()).toEqual([]);
+});
+
+it("removes only a recent entry and restores its original position without touching saved work", () => {
+  rememberProject({ path: "/other.story", title: "Other" });
+  rememberProject({ path: project.projectPath, title: project.title });
+  saveSession(project.projectPath, session);
+  savePosition(project.projectPath, "s", "main", { anchor: 2, head: 4, top: 120, left: 0 });
+  localStorage.setItem("recovery-draft", "unsaved work");
+  const previous = recentProjects();
+  expect(forgetProject(project.projectPath)).toEqual([previous[1]]);
+  expect(readSession(project)).toEqual(session);
+  expect(readPosition(project.projectPath, "s", "main", 6)?.top).toBe(120);
+  expect(localStorage.getItem("recovery-draft")).toBe("unsaved work");
+  expect(restoreRecentProject(previous[0], 0)).toEqual(previous);
+});
+
+it("undoing history removal preserves newly opened projects and does not duplicate newer entries", () => {
+  const removed = { path: "/old.story", title: "Old title" };
+  rememberProject(removed);
+  forgetProject(removed.path);
+  rememberProject({ path: "/new.story", title: "New" });
+  expect(restoreRecentProject(removed, 1).map(item => item.path)).toEqual(["/new.story", removed.path]);
+  rememberProject({ ...removed, title: "Updated title" });
+  expect(restoreRecentProject(removed, 0).filter(item => item.path === removed.path)).toEqual([{ ...removed, title: "Updated title" }]);
+});
+
+it("keeps the recent history limit when undoing removal after additional projects were opened", () => {
+  for (let i = 0; i < 15; i++) rememberProject({ path: `/project${i}`, title: `${i}` });
+  const restored = restoreRecentProject({ path: "/removed.story", title: "Removed" }, 5);
+  expect(restored).toHaveLength(15);
+  expect(restored[5].path).toBe("/removed.story");
 });
