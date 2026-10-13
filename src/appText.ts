@@ -1,4 +1,5 @@
 import { translate, type Locale, type MessageKey } from "./i18n";
+import { ProjectSceneSaveError } from "./projectSave";
 
 export type Translate = (
   key: MessageKey,
@@ -13,7 +14,12 @@ const metadataConflict = {
   zh: "项目信息已在应用外被修改。请先复制当前输入，再重新打开项目核对。",
 } as const;
 
-export function localizedError(error: unknown, locale: Locale) {
+export function localizedError(error: unknown, locale: Locale): string {
+  if (error instanceof ProjectSceneSaveError) {
+    return error.stage === "recovery"
+      ? translate(locale, "recoveryFailed")
+      : localizedError(error.reason, locale);
+  }
   const message = String(error);
   if (message.includes("METADATA_CONFLICT")) return metadataConflict[locale];
   if (message.includes("HISTORY_CONFLICT")) return translate(locale, "editHistoryConflict");

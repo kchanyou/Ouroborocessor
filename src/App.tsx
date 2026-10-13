@@ -9,13 +9,13 @@ import {
   statusLabel,
   type Translate,
 } from "./appText";
-import { PanelResize, WorkspaceControls } from "./WorkspaceControls";
-import { EditorAppearanceSettings, editorAppearanceStyle } from "./EditorAppearance";
+import { PaneLayoutMenu, SplitResize, WorkspaceControls } from "./WorkspaceControls";
+import { EditorAppearanceSettings, appAppearanceTokens, editorAppearanceStyle } from "./EditorAppearance";
 import { InspectorPanel } from "./InspectorPanel";
 import { SideEditor } from "./SideEditor";
 import { ManuscriptNavigator } from "./ManuscriptNavigator";
 import { startTabDrag, type TabDragState } from "./tabDrag";
-import { layoutKey, layoutText, readLayout, sideWidthRange } from "./workspaceLayout";
+import { layoutKey, readLayout, splitText, type SplitDirection } from "./workspaceLayout";
 import {
   addNode,
   applyBatchEdit,
@@ -59,6 +59,9 @@ import { readSession, saveSession, rememberProject, relocateSession, insertTab, 
 import { quickOpenDocuments } from "./quickOpen";
 import { featureText } from "./featureText";
 import { RecentProjectsDialog } from "./RecentProjectsDialog";
+import { BackupCenter } from "./BackupCenter";
+import { backupText } from "./backupText";
+import { createBackup } from "./tauriApi";
 import { SceneToolsDialog, type SceneTool } from "./SceneToolsDialog";
 import { applySceneOperation, listResourceCards, type SceneOperation } from "./tauriApi";
 import { writingToolsText } from "./writingToolsText";
@@ -67,7 +70,7 @@ import { WritingGoals } from "./WritingGoalsPanel";
 import { recordWriting } from "./writingGoals";
 import { matchesShortcut, shortcutLabel, shortcuts } from "./shortcuts";
 import { isSupportedImageFile, logicalDropPoint, supportedImagePaths } from "./imageDrop";
-import { removeImage, updateImageAlt } from "./manuscriptImages";
+import { removeImageFromEditor, updateImageAltFromEditor } from "./manuscriptImages";
 import { CloseSaveCoordinator } from "./closeSafety";
 import { readableResourceText } from "./resourceLinks";
 import type { ResourceCard } from "./types";
@@ -137,6 +140,7 @@ function App() {
   }, [layout, showNavigator, showInspector, focusMode]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   // shared by both panes, each pane has its own key order
@@ -147,7 +151,9 @@ function App() {
   const [sideTabs, setSideTabs] = useState<string[]>([]);
   const [sideActiveKey, setSideActiveKey] = useState<string | null>(null);
   const [tabDrag, setTabDrag] = useState<TabDragState | null>(null);
-  const tabDropActions = useRef({ toSide: (_key: string) => {}, toMain: (_key: string) => {} });
+  const cancelTabDrag = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => cancelTabDrag.current?.(), [project?.projectPath]);
+  const tabDropActions = useRef({ toSide: (_key: string, _direction?: SplitDirection) => {}, toMain: (_key: string) => {} });
   const [paletteMode, setPaletteMode] = useState<"commands" | "files" | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [nativeImageDrag, setNativeImageDrag] = useState(false);
@@ -264,6 +270,13 @@ function App() {
     root.style.setProperty("--editor-width", `${writingPreferences.editorWidth}px`);
     savePreferences(WRITING_PREFERENCES_KEY, writingPreferences);
   }, [writingPreferences]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const tokens = appAppearanceTokens(writingPreferences, appPreferences.increaseContrast);
+    for (const [key, value] of Object.entries(tokens)) root.style.setProperty(key, value);
+    return () => { for (const key of Object.keys(tokens)) root.style.removeProperty(key); };
+  }, [writingPreferences.editorTheme, writingPreferences.customBackground, writingPreferences.customText, appPreferences.increaseContrast]);
 
   const acceptProject = useCallback((next: ProjectSnapshot, nativeDrafts: RecoveryDraftEntry[] = [], nativeRecoveryError = false, cards?: ResourceCard[]) => {
     const recovery = recoverProjectDrafts(next, diskContents.current, nativeDrafts);
@@ -418,6 +431,14 @@ function App() {
     }
   };
   closeSaveRef.current = persistForExport;
+
+  const backupCurrentProject = async (destination: string) => {
+    if (!project || historyBusyRef.current) throw new Error("BATCH_BUSY");
+    await persistForExport();
+    // Native copying runs on a worker and rejects a changing source; later saves
+    // must not wait for an entire backup to finish.
+    return createBackup(project.projectPath, destination);
+  };
   closeErrorRef.current = (reason) => {
     historyBusyRef.current = false;
     setHistoryBusy(false);
@@ -526,8 +547,9 @@ function App() {
   }
 
   // move=false keeps it in main too. last tab never gets moved out
-  async function openToSide(key: string, move = false) {
+  async function openToSide(key: string, move = false, direction?: SplitDirection) {
     try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
+    if (direction) setLayout(current => ({ ...current, splitDirection: direction }));
     setSideTabs((current) => current.includes(key) ? current : [...current, key]);
     setSideActiveKey(key);
     if (move && tabOrder.length > 1) removeFromMain(key);
@@ -542,15 +564,17 @@ function App() {
     then?.();
   }
 
-  function moveToMain(key: string, move = true) {
-    if (move) setSideTabs((current) => current.filter((item) => item !== key));
+  async function moveToMain(key: string, move = true) {
     if (key.startsWith("node:")) {
       const node = project?.nodes.find((item) => `node:${item.id}` === key);
-      if (node) void selectNode(node);
+      if (!node || !await selectNode(node)) return;
     } else {
+      try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
       setMainReferenceKeys((current) => current.includes(key) ? current : [...current, key]);
       setActiveReferenceKey(key);
     }
+    // Keep the source tab visible until saving and destination activation succeed.
+    if (move) setSideTabs((current) => current.filter((item) => item !== key));
   }
 
   function closeSideTab(key: string) {
@@ -581,13 +605,14 @@ function App() {
   }, [mainReferenceKeys, sideTabs]);
 
   // drag moves, split button copies
-  tabDropActions.current = { toSide: (key) => { void openToSide(key, true); }, toMain: (key) => moveToMain(key, true) };
+  tabDropActions.current = { toSide: (key, direction) => { void openToSide(key, true, direction); }, toMain: (key) => moveToMain(key, true) };
 
   function beginTabDrag(key: string, title: string, from: PaneId, event: ReactPointerEvent<HTMLButtonElement>) {
-    startTabDrag(key, title, from, event, setTabDrag, (target) => {
-      if (target === "side" && from === "main") tabDropActions.current.toSide(key);
+    cancelTabDrag.current?.();
+    cancelTabDrag.current = startTabDrag(key, title, from, event, setTabDrag, (target, direction) => {
+      if (target === "side" && from === "main") tabDropActions.current.toSide(key, direction);
       if (target === "main" && from === "side") tabDropActions.current.toMain(key);
-    });
+    }, layout.splitRatio);
   }
 
   async function insertImageEntries(entries: Array<{ alt: string; save: () => Promise<string> }>, start: number, end: number) {
@@ -766,7 +791,7 @@ function App() {
 
   function commitImageAlt(value = imageAltDraft) {
     if (!selectedImage || !selectedScene || selectedImage.sceneId !== selectedScene.id) return;
-    const result = updateImageAlt(selectedScene.content, selectedImage.from, selectedImage.to, value);
+    const result = updateImageAltFromEditor(selectedScene.content, selectedImage.from, selectedImage.to, value);
     if (!result) { setSelectedImage(null); return; }
     if (result.content === selectedScene.content) { setImageAltDraft(result.image.alt); return; }
     updateContent(result.content);
@@ -778,7 +803,7 @@ function App() {
 
   function removeSelectedImage() {
     if (!selectedImage || !selectedScene || selectedImage.sceneId !== selectedScene.id) return;
-    const content = removeImage(selectedScene.content, selectedImage.from, selectedImage.to);
+    const content = removeImageFromEditor(selectedScene.content, selectedImage.from, selectedImage.to);
     if (content === null) { setSelectedImage(null); return; }
     const cursor = selectedImage.from;
     updateContent(content);
@@ -839,12 +864,10 @@ function App() {
   }
 
   async function openRecentProject(path: string) {
-    await persistForExport();
     await acceptProjectWithRecovery(await openProject(path));
   }
 
   async function locateProject(oldPath?: string) {
-    await persistForExport();
     const path = await chooseFolder(t("chooseStoryFolder"));
     if (!path) return false;
     const next = await openProject(path);
@@ -1128,13 +1151,13 @@ function App() {
     }
     const target = project?.nodes.find((node) => node.id === action.id);
     if (!target) return;
-    await selectNode(target, false);
+    if (!await selectNode(target, false)) return;
     requestAnimationFrame(() => Array.from(document.querySelectorAll<HTMLElement>("[data-tree-item-id]"))
       .find((element) => element.dataset.treeItemId === action.id)?.focus());
   }
 
   async function selectNode(node: ManuscriptNode, focusEditor = true) {
-    try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return; }
+    try { await persistSelected(); } catch (reason) { setError(localizedError(reason, locale)); return false; }
     setActiveReferenceKey(null);
     setSelectedImage(null);
     // may already be selected -> effect won't fire, add the tab here
@@ -1142,6 +1165,7 @@ function App() {
     setSelectedNodeId(node.id);
     if (focusEditor && isCompactViewport()) setShowNavigator(false);
     if (focusEditor && node.kind === "scene") requestAnimationFrame(() => editorRef.current?.focus());
+    return true;
   }
 
   async function runReplacement(changes: BatchChange[], undo = false) {
@@ -1277,13 +1301,14 @@ function App() {
     : [
       ...sceneCommands,
       { id: "recent-projects", title: features.recentProjects, run: () => setRecentProjectsOpen(true) },
+      { id: "backup-center", title: backupText[locale].title, run: () => setBackupOpen(true) },
       { id: "reopen-tab", title: features.reopenTab, shortcut: shortcutLabel(shortcuts.reopenTab, isMac), run: () => { void reopenClosedTab(); } },
       ...(selectedScene && !activeReferenceKey ? [{ id: "image", title: commandText.image, shortcut: shortcutLabel(shortcuts.insertImage, isMac), run: () => imageInputRef.current?.click() }] : []),
       { id: "research", title: commandText.research, shortcut: shortcutLabel(shortcuts.openResearch, isMac), run: () => openReference() },
       { id: "close", title: commandText.close, shortcut: shortcutLabel(shortcuts.closeTab, isMac), run: () => { void closeTab(activeTabKey ?? ""); } },
       { id: "next", title: commandText.next, shortcut: shortcutLabel(shortcuts.nextTab, isMac), run: () => cycleTab(1) },
       { id: "previous", title: commandText.previous, shortcut: shortcutLabel(shortcuts.previousTab, isMac), run: () => cycleTab(-1) },
-      ...(activeTabKey ? [{ id: "split", title: tabT.openSide, shortcut: shortcutLabel(shortcuts.splitRight, isMac), run: () => { void openToSide(activeTabKey); } }] : []),
+      ...(activeTabKey ? (["right", "left", "down", "up"] as const).map(direction => ({ id: `split-${direction}`, title: splitText[locale][direction], run: () => { void openToSide(activeTabKey, false, direction); } })) : []),
       { id: "sidebar", title: commandText.sidebar, shortcut: shortcutLabel(shortcuts.toggleSidebar, isMac), run: toggleNavigator },
       { id: "settings", title: commandText.settings, shortcut: isMac ? "⌘," : "Ctrl+,", run: () => setSettingsOpen(true) },
     ];
@@ -1303,7 +1328,8 @@ function App() {
         saveState={saveState} saveText={saveLabel[saveState]} canFind={Boolean(selectedScene)}
         state={{ navigator: showNavigator, inspector: showInspector, focus: focusMode, find: findOpen, research: Boolean(activeReferenceKey) || sideReferences.length > 0 }}
         actions={{
-          newProject: () => { void persistSelected().then(() => setNewProjectOpen(true)).catch((reason) => setError(localizedError(reason, locale))); },
+          newProject: () => setNewProjectOpen(true),
+          backup: () => setBackupOpen(true),
           toggleNavigator, openAnother: () => setRecentProjectsOpen(true), exportProject: () => setExportOpen(true),
           projectSearch: () => setProjectSearchOpen(true), research: () => openReference(), toggleFind: () => setFindOpen((open) => !open),
           toggleFocus: toggleFocusMode, toggleInspector, settings: () => setSettingsOpen(true),
@@ -1330,12 +1356,14 @@ function App() {
         )}
 
         <div className="editor-workspace" data-editor-theme={writingPreferences.editorTheme} style={editorAppearanceStyle(writingPreferences)}>
-        <div className={`pane-row ${sideKeys.length ? "is-split" : ""}`} style={{ "--side-width": `${layout.sideWidth}px` } as CSSProperties}>
+        <div className={`pane-row ${sideKeys.length ? "is-split" : ""}`} data-split-direction={layout.splitDirection} style={{ "--main-share": `${1 - layout.splitRatio}fr`, "--side-share": `${layout.splitRatio}fr` } as CSSProperties}>
         <section className="workspace-pane" data-pane-root="main">
-        <DocumentTabs nodes={documentTabs.flatMap(id => project?.nodes.find(node => node.id === id) ?? [])}
-          references={mainReferences} activeKey={activeTabKey} locale={locale}
+        <div className="pane-tabs"><DocumentTabs nodes={documentTabs.flatMap(id => project?.nodes.find(node => node.id === id) ?? [])}
+          references={mainReferences} activeKey={activeTabKey} locale={locale} direction={layout.splitDirection}
           onSelectNode={node => void selectNode(node)} onSelectReference={setActiveReferenceKey} onClose={key => void closeTab(key)}
           onMove={(key) => void openToSide(key)} onDragStart={(key, title, event) => beginTabDrag(key, title, "main", event)} />
+          <PaneLayoutMenu locale={locale} direction={layout.splitDirection} disabled={!activeTabKey} split={sideKeys.length > 0}
+            onChoose={direction => { if (activeTabKey) void openToSide(activeTabKey, false, direction); }} onEqualize={() => setLayout(current => ({ ...current, splitRatio: 0.5 }))} /></div>
         <div className="editor-split" id="workspace-tab-content">
         <main role="tabpanel" hidden={Boolean(activeReference)} className={`editor-region ${findOpen && selectedScene ? "has-find" : ""} ${nativeImageDrag ? "is-file-dragging" : ""}`} aria-labelledby="item-title">
           {nativeImageDrag && <div className="image-drop-overlay" role="status"><strong>{dropT.prompt}</strong><span>{dropT.unsupported}</span></div>}
@@ -1348,7 +1376,7 @@ function App() {
               </header>
               {findOpen && <FindPanel key={`${project?.projectPath}:${selectedScene.id}`} content={selectedScene.content} locale={locale}
                 onChange={updateContent} onClose={() => { setFindOpen(false); editorRef.current?.focus(); }}
-                onSelect={(start, end) => { editorRef.current?.focus(); editorRef.current?.setSelectionRange(start, end); }} />}
+                onSelect={(start, end) => { editorRef.current?.setSelectionRange(start, end); }} />}
               <ManuscriptEditor key={`${project?.projectPath}:${selectedScene.id}`} projectPath={project?.projectPath ?? ""} sceneId={selectedScene.id} ref={editorRef}
                 label={`${selectedScene.title} · ${t("scene")}`} content={selectedScene.content} preferences={writingPreferences}
                 onChange={updateContent} onComposition={(active) => { isComposing.current = active; setCompositionEpoch((value) => value + 1); }}
@@ -1380,10 +1408,12 @@ function App() {
         </div>
         </section>
         {sideKeys.length > 0 && project && <section className="workspace-pane side-pane" data-pane-root="side" aria-label={tabT.sidePane}>
-          <PanelResize side="left" value={layout.sideWidth} min={sideWidthRange.min} max={sideWidthRange.max} label={layoutText[locale].side} onChange={(sideWidth) => setLayout((current) => ({ ...current, sideWidth }))} />
-          <DocumentTabs nodes={sideNodes} references={sideReferences} activeKey={sideActive} locale={locale} pane="side" panelId="side-tab-content"
+          <SplitResize direction={layout.splitDirection} value={layout.splitRatio} label={splitText[locale].resize} onChange={splitRatio => setLayout(current => ({ ...current, splitRatio }))} />
+          <div className="pane-tabs"><DocumentTabs nodes={sideNodes} references={sideReferences} activeKey={sideActive} locale={locale} pane="side" panelId="side-tab-content"
             onSelectNode={(node) => void switchSideTab(`node:${node.id}`)} onSelectReference={(key) => void switchSideTab(key)} onClose={closeSideTab}
             onMove={(key) => moveToMain(key)} onDragStart={(key, title, event) => beginTabDrag(key, title, "side", event)} />
+            <PaneLayoutMenu locale={locale} direction={layout.splitDirection} disabled={false} split onChoose={splitDirection => setLayout(current => ({ ...current, splitDirection }))}
+              onEqualize={() => setLayout(current => ({ ...current, splitRatio: 0.5 }))} /></div>
           <div className="side-content" id="side-tab-content">
             {sideActiveReference ? <Suspense fallback={<div className="deferred-panel" role="status">{t("working")}</div>}>
               <ReferencePanel key={`side:${project.projectPath}:${sideActiveReference.key}`} project={project} locale={locale} card={sideActiveReference.card}
@@ -1400,7 +1430,7 @@ function App() {
         </section>}
         </div>
         {tabDrag && <>
-          {tabDrag.hint && <div className="pane-drop-hint" style={tabDrag.hint}><span>{tabDrag.target === "side" ? tabT.dropSide : tabT.dropMain}</span></div>}
+          {tabDrag.hint && <div className="pane-drop-hint" style={tabDrag.hint}><span>{tabDrag.direction ? splitText[locale][tabDrag.direction] : tabDrag.target === "side" ? tabT.dropSide : tabT.dropMain}</span></div>}
           <div className="tab-drag-ghost" style={{ left: tabDrag.x + 14, top: tabDrag.y + 12 }}>{tabDrag.title}</div>
         </>}
         </div>
@@ -1423,8 +1453,10 @@ function App() {
       </div>
 
       {sceneTool && project && <SceneToolsDialog mode={sceneTool.mode} project={project} selected={selectedNode} nextScene={nextMergeScene} offset={sceneTool.offset} locale={locale} onApply={performSceneOperation} onClose={() => setSceneTool(null)} />}
-      {recentProjectsOpen && <RecentProjectsDialog locale={locale} onOpen={openRecentProject} onLocate={locateProject} onClose={() => setRecentProjectsOpen(false)} />}
-      {newProjectOpen && <NewProjectDialog locale={locale} onClose={() => setNewProjectOpen(false)} onCreated={(next) => { acceptProject(next); setNewProjectOpen(false); }} />}
+      {recentProjectsOpen && <RecentProjectsDialog locale={locale} persist={persistForExport} onOpen={openRecentProject} onLocate={locateProject} onClose={() => setRecentProjectsOpen(false)} />}
+      <BackupCenter key={project?.projectPath ?? ""} projectPath={project?.projectPath ?? ""} locale={locale} open={backupOpen} blocked={historyBusy}
+        onFailure={setError} onClose={() => setBackupOpen(false)} backup={backupCurrentProject} onOpen={async path => { await persistForExport(); await openRecentProject(path); }} />
+      {newProjectOpen && <NewProjectDialog locale={locale} persist={persistForExport} onClose={() => setNewProjectOpen(false)} onCreated={(next) => { acceptProject(next); setNewProjectOpen(false); }} />}
       {projectSearchOpen && project && <Suspense fallback={<div className="dialog-backdrop" role="status"><span>{t("working")}</span></div>}><ProjectSearchDialog project={project} locale={locale} onNavigate={navigateSearchResult} onApply={runReplacement} onUndo={undoReplacement} canUndo={batchUndo?.path === project.projectPath && !!batchUndo.changes.length} onRestore={async (journalId, sceneId) => {
         if (historyBusyRef.current) throw new Error("BATCH_BUSY");
         historyBusyRef.current = true; setHistoryBusy(true);

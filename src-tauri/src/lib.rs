@@ -6,6 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
+mod backups;
 mod batch_edit;
 mod document_export;
 mod docx_export;
@@ -18,6 +19,8 @@ mod resources;
 mod scene_operations;
 mod storage;
 mod text_export;
+#[cfg(test)]
+mod workflow_tests;
 pub(crate) use storage::{storage_error, write_atomic};
 static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -1118,6 +1121,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            backups::create_backup,
+            backups::list_backups,
+            backups::preview_backup,
+            backups::restore_backup,
             images::save_image,
             images::import_image,
             images::read_image,

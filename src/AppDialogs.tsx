@@ -28,15 +28,17 @@ import { HelpDetails } from "./HelpDetails";
 
 type NewProjectDialogProps = {
   locale: Locale;
+  persist: () => Promise<void>;
   onCreated: (project: ProjectSnapshot) => void;
   onClose: () => void;
 };
 
-export function NewProjectDialog({ locale, onCreated, onClose }: NewProjectDialogProps) {
+export function NewProjectDialog({ locale, persist, onCreated, onClose }: NewProjectDialogProps) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
+  const locked = useRef(false);
   const t: Translate = (key, values) => translate(locale, key, values);
 
   useEffect(() => {
@@ -45,9 +47,12 @@ export function NewProjectDialog({ locale, onCreated, onClose }: NewProjectDialo
 
   async function create(event: FormEvent) {
     event.preventDefault();
-    if (!title.trim() || busy) return;
+    if (!title.trim() || locked.current) return;
+    locked.current = true;
     setBusy(true);
+    setError("");
     try {
+      await persist();
       const path = await chooseFolder(t("chooseProjectFolder"));
       if (path) {
         onCreated(await createProject(path, title, t("firstGroup"), t("firstScene")));
@@ -55,6 +60,7 @@ export function NewProjectDialog({ locale, onCreated, onClose }: NewProjectDialo
     } catch (reason) {
       setError(localizedError(reason, locale));
     } finally {
+      locked.current = false;
       setBusy(false);
     }
   }
@@ -64,7 +70,7 @@ export function NewProjectDialog({ locale, onCreated, onClose }: NewProjectDialo
       ref={dialog}
       className="new-project-dialog"
       onCancel={(event) => {
-        if (busy) event.preventDefault();
+        if (locked.current) event.preventDefault();
         else onClose();
       }}
     >
@@ -289,8 +295,14 @@ export function SettingsDialog({ preferences, setPreferences, onClose, t, worksp
   const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    const previous = document.activeElement;
     closeRef.current?.focus();
+    return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
+  }, []);
+
+  useEffect(() => {
     function handleKey(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.isComposing) return;
       if (event.key === "Escape") {
         onClose();
         return;

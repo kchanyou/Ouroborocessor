@@ -7,6 +7,9 @@ it("renders a keyboard-accessible command list without test-oriented mode labels
     { id: "research", title: "레퍼런스 열기", shortcut: "⌘⇧R", run: () => {} },
   ]} />);
   expect(html).toContain('role="dialog"');
+  expect(html).toContain("<dialog");
+  expect(html).toContain('aria-label="닫기"');
+  expect(html).toContain('tabindex="-1"');
   expect(html).toContain('role="listbox"');
   expect(html).toContain("레퍼런스 열기");
   expect(html).toContain("⌘⇧R");

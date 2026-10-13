@@ -4,7 +4,7 @@
   "description": "Accessible, local-first long-form writing application",
   "author": "Kim Chanyoung <qurioturio@gmail.com>",
   "license": "SEE LICENSE IN LICENSE",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "engines": {
     "node": ">=22.12"
   },

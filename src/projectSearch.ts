@@ -2,10 +2,10 @@ import { exportScope } from "./exportScope";
 import type { ManuscriptNode } from "./types";
 
 export type ProjectMatch = { sceneId: string; title: string; start: number; end: number; source: string };
-export function editorMatchOffsets(hit: ProjectMatch) {
-  // textarea turns CRLF into LF, offsets are UTF-16
-  return { start: hit.source.slice(0, hit.start).replace(/\r\n/g, "\n").length,
-    end: hit.source.slice(0, hit.end).replace(/\r\n/g, "\n").length };
+export function editorMatchOffsets(hit: Pick<ProjectMatch, "source" | "start" | "end">) {
+  // CodeMirror normalizes CRLF and CR to LF; positions remain UTF-16 offsets.
+  return { start: hit.source.slice(0, hit.start).replace(/\r\n?/g, "\n").length,
+    end: hit.source.slice(0, hit.end).replace(/\r\n?/g, "\n").length };
 }
 export function searchProject(nodes: ManuscriptNode[], query: string, matchCase: boolean, limit = 200) {
   const hits: ProjectMatch[] = [];

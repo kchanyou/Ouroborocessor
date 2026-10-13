@@ -69,6 +69,13 @@ export function exportProject(projectPath: string, destination: string) {
   return invoke<string>("export_project", { projectPath, destination });
 }
 
+export type BackupEntry = { path: string; title: string; createdAt: number; scenes: number };
+export type BackupReport = { entries: BackupEntry[]; invalidCount: number };
+export const createBackup = (projectPath: string, destination: string) => invoke<BackupEntry>("create_backup", { projectPath, destination });
+export const listBackups = (destination: string) => invoke<BackupReport>("list_backups", { destination });
+export const previewBackup = (backupPath: string) => invoke<ProjectSnapshot>("preview_backup", { backupPath });
+export const restoreBackup = (backupPath: string, destination: string) => invoke<string>("restore_backup", { backupPath, destination });
+
 export type DocumentFormat = "docx" | "hwpx" | "odt" | "html" | "txt";
 export type PaperSize = "a4" | "letter";
 export type MarginPreset = "narrow" | "normal" | "wide";

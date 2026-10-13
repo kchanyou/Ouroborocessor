@@ -8,13 +8,16 @@ export function NumericSetting({ value, label, min, max, step, onChange }: {
   useEffect(() => setDraft(String(value)), [value]);
   function commit() {
     const next = normalizeNumber(draft, value, min, max, step);
-    setDraft(String(next)); onChange(next);
+    setDraft(String(next));
+    if (next !== value) onChange(next);
   }
   return <input className="numeric-setting" type="number" inputMode="decimal" aria-label={label} min={min} max={max} step={step}
     value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
     onKeyDown={(e) => {
       if (e.nativeEvent.isComposing) return;
-      if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-      if (e.key === "Escape") { setDraft(String(value)); }
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape" && draft !== String(value)) {
+        e.preventDefault(); e.stopPropagation(); setDraft(String(value));
+      }
     }} />;
 }

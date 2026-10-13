@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findText, normalizeNumber, replaceMatches } from "./findReplace";
+import { findText, normalizeNumber, replaceCurrentMatch, replaceMatches } from "./findReplace";
 
 describe("literal scene search", () => {
   it("treats regex symbols as literal text", () => {
@@ -32,5 +32,30 @@ describe("numeric writing settings", () => {
     expect(normalizeNumber("1", 13, 12, 64, 1)).toBe(12);
     expect(normalizeNumber("1.83", 1.8, 1, 3.2, .05)).toBe(1.85);
     expect(normalizeNumber("13", 20, 12, 64, 1)).toBe(13);
+  });
+});
+
+describe("single replacement navigation", () => {
+  it("continues forward from a middle match instead of restarting", () => {
+    expect(replaceCurrentMatch("cat cat cat", "cat", "dog", true, 1)).toEqual({ content: "cat dog cat", index: 1 });
+  });
+  it("skips search terms inside newly inserted text", () => {
+    const next = replaceCurrentMatch("cat cat cat", "cat", "catcat", true, 1);
+    expect(next).toEqual({ content: "cat catcat cat", index: 3 });
+    expect(replaceCurrentMatch(next.content, "cat", "dog", true, next.index).content).toBe("cat catcat dog");
+  });
+  it("handles deletion, adjacent matches and wrapping", () => {
+    expect(replaceCurrentMatch("xxx", "x", "", true, 1)).toEqual({ content: "xx", index: 1 });
+    expect(replaceCurrentMatch("cat cat", "cat", "dog", true, 1)).toEqual({ content: "cat dog", index: 0 });
+    expect(replaceCurrentMatch("cat", "cat", "", true, 0)).toEqual({ content: "", index: 0 });
+  });
+  it("advances even when replacement leaves the text unchanged", () => {
+    expect(replaceCurrentMatch("cat cat", "cat", "cat", true, 0)).toEqual({ content: "cat cat", index: 1 });
+  });
+  it("preserves UTF-16 positions and case-insensitive matching", () => {
+    expect(replaceCurrentMatch("😀 CAT cat", "cat", "🐈cat", false, 0)).toEqual({ content: "😀 🐈cat cat", index: 1 });
+  });
+  it("leaves unmatched text untouched", () => {
+    expect(replaceCurrentMatch("cat", "dog", "x", true, 0)).toEqual({ content: "cat", index: 0 });
   });
 });

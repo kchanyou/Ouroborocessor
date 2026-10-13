@@ -4,13 +4,14 @@ import type { Locale } from "./i18n";
 import type { Translate } from "./appText";
 import type { SaveState } from "./types";
 import { shortcutLabel, shortcuts } from "./shortcuts";
+import { backupText } from "./backupText";
 
 export function Topbar({ t, locale, isMac, busy, hasProject, title, saveState, saveText, canFind, state, actions }: {
   t: Translate; locale: Locale; isMac: boolean; busy: boolean; hasProject: boolean; title: string;
   saveState: SaveState; saveText: string; canFind: boolean;
   state: { navigator: boolean; inspector: boolean; focus: boolean; find: boolean; research: boolean };
   actions: {
-    newProject: () => void; toggleNavigator: () => void; openAnother: () => void; exportProject: () => void;
+    newProject: () => void; toggleNavigator: () => void; openAnother: () => void; exportProject: () => void; backup: () => void;
     projectSearch: () => void; research: () => void; toggleFind: () => void;
     toggleFocus: () => void; toggleInspector: () => void; settings: () => void;
   };
@@ -50,6 +51,7 @@ export function Topbar({ t, locale, isMac, busy, hasProject, title, saveState, s
       <button type="button" className="toolbar-button icon-only" disabled={!canFind} aria-label={t("findReplace")} title={t("findReplace")} aria-pressed={state.find} onClick={actions.toggleFind}><Icon name="search" /></button>
       {trailingTools.map((tool) => <button key={tool.id} type="button" className={`toolbar-button icon-only overflow-${tool.collapse}`} onClick={tool.run} aria-pressed={tool.pressed} aria-label={tool.label} title={tool.title}><Icon name={tool.icon} /></button>)}
       <ToolbarMore locale={locale}>
+        <button type="button" className="toolbar-button" onClick={actions.backup}>{backupText[locale].title}</button>
         {trailingTools.map((tool) => <button key={tool.id} type="button" className={`toolbar-button overflow-${tool.collapse}`} onClick={tool.run} aria-pressed={tool.pressed} title={tool.title}><Icon name={tool.icon} /><span>{tool.label}</span></button>)}
       </ToolbarMore>
     </nav>

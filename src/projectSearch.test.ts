@@ -39,4 +39,12 @@ describe("project body search", () => {
     const offsets = editorMatchOffsets(hit);
     expect(content.replace(/\r\n/g, "\n").slice(offsets.start, offsets.end)).toBe("日本語");
   });
+  it("maps matches spanning mixed line endings to CodeMirror positions", () => {
+    const source = "😀\r\n앞\r중간\n뒤\r\n끝";
+    const query = "중간\n뒤\r\n끝";
+    const start = source.indexOf(query);
+    const offsets = editorMatchOffsets({ source, start, end: start + query.length });
+    expect(source.replace(/\r\n?/g, "\n").slice(offsets.start, offsets.end)).toBe("중간\n뒤\n끝");
+    expect(offsets.start).toBe(5);
+  });
 });

@@ -44,39 +44,57 @@ export function customFontStack(name: string) {
 }
 
 export function editorAppearanceStyle(prefs: WritingPreferences): CSSProperties {
+  return { "--editor-font": prefs.fontFamily === "custom" ? customFontStack(prefs.customFont) : fontStacks[prefs.fontFamily] } as CSSProperties;
+}
+
+export function appAppearanceTokens(prefs: WritingPreferences, highContrast = false): Record<string, string> {
   const palette = paletteFor(prefs);
-  const style: Record<string, string> = { "--editor-font": prefs.fontFamily === "custom" ? customFontStack(prefs.customFont) : fontStacks[prefs.fontFamily] };
+  const style: Record<string, string> = {};
   if (palette) {
+    const surface = `color-mix(in srgb, ${palette.page} 95%, ${palette.ink})`;
+    const accent = palette.dark ? "#b4cdb6" : "#416451";
     Object.assign(style, {
+      "--canvas": surface,
+      "--chrome": surface,
+      "--sidebar": surface,
+      "--sidebar-solid": surface,
       "--editor": palette.page,
       "--ink": palette.ink,
       "--ink-secondary": palette.muted,
       "--ink-tertiary": palette.muted,
-      "--line": `color-mix(in srgb, ${palette.ink} 14%, transparent)`,
-      "--line-strong": `color-mix(in srgb, ${palette.ink} 28%, transparent)`,
+      "--line": highContrast ? palette.ink : `color-mix(in srgb, ${palette.ink} 14%, transparent)`,
+      "--line-strong": highContrast ? palette.ink : `color-mix(in srgb, ${palette.ink} 28%, transparent)`,
       "--control": `color-mix(in srgb, ${palette.page} 94%, ${palette.ink})`,
       "--control-hover": `color-mix(in srgb, ${palette.ink} 8%, transparent)`,
-      colorScheme: palette.dark ? "dark" : "light",
+      "--accent": accent,
+      "--focus": accent,
+      "--accent-contrast": palette.dark ? "#202820" : "#ffffff",
+      "--accent-soft": `color-mix(in srgb, ${accent} 18%, ${palette.page})`,
+      "--control-pressed": `color-mix(in srgb, ${accent} 18%, ${palette.page})`,
+      "--danger": palette.dark ? "#ff8a80" : "#b42320",
+      "--shadow": `0 18px 55px rgb(0 0 0 / ${palette.dark ? "42%" : "13%"})`,
+      "--popup-shadow": `0 10px 32px rgb(0 0 0 / ${palette.dark ? "40%" : "12%"})`,
+      "color-scheme": palette.dark ? "dark" : "light",
       color: palette.ink,
     });
   }
-  return style as CSSProperties;
+  return style;
 }
 
 export const editorText = {
-  ko: { title: "에디터", theme: "배경", font: "글꼴", auto: "앱 테마", paper: "종이", sepia: "세피아", mist: "안개", slate: "슬레이트", night: "밤", custom: "직접 지정",
+  ko: { title: "색상과 원고 글꼴", theme: "앱 전체 색상", font: "글꼴", auto: "앱 테마", paper: "종이", sepia: "세피아", mist: "안개", slate: "슬레이트", night: "밤", custom: "직접 지정",
     background: "배경색", text: "글자색", serif: "명조", sans: "고딕", rounded: "둥근 고딕", mono: "고정폭", customFont: "설치된 글꼴", customFontPlaceholder: "글꼴 이름 (예: Pretendard)",
     customFontHint: "이 컴퓨터에 설치된 글꼴 이름을 입력하세요. 찾지 못하면 명조로 표시돼요." },
-  en: { title: "Editor", theme: "Background", font: "Font", auto: "App theme", paper: "Paper", sepia: "Sepia", mist: "Mist", slate: "Slate", night: "Night", custom: "Custom",
+  en: { title: "Colors and manuscript font", theme: "App colors", font: "Font", auto: "App theme", paper: "Paper", sepia: "Sepia", mist: "Mist", slate: "Slate", night: "Night", custom: "Custom",
     background: "Background", text: "Text", serif: "Serif", sans: "Sans serif", rounded: "Rounded", mono: "Monospace", customFont: "Installed font", customFontPlaceholder: "Font name (e.g. Pretendard)",
     customFontHint: "Enter the name of a font installed on this computer. If it isn't found, serif is used." },
-  es: { title: "Editor", theme: "Fondo", font: "Fuente", auto: "Tema de la app", paper: "Papel", sepia: "Sepia", mist: "Niebla", slate: "Pizarra", night: "Noche", custom: "Personalizado",
+  es: { title: "Colores y fuente del manuscrito", theme: "Colores de la aplicación", font: "Fuente", auto: "Tema de la app", paper: "Papel", sepia: "Sepia", mist: "Niebla", slate: "Pizarra", night: "Noche", custom: "Personalizado",
     background: "Fondo", text: "Texto", serif: "Serif", sans: "Sans serif", rounded: "Redondeada", mono: "Monoespaciada", customFont: "Fuente instalada", customFontPlaceholder: "Nombre de la fuente (p. ej., Pretendard)",
     customFontHint: "Escribe el nombre de una fuente instalada en este equipo. Si no se encuentra, se usa una serif." },
-  ja: { title: "エディタ", theme: "背景", font: "フォント", auto: "アプリのテーマ", paper: "紙", sepia: "セピア", mist: "霧", slate: "スレート", night: "夜", custom: "カスタム",
+  ja: { title: "配色と原稿のフォント", theme: "アプリ全体の配色", font: "フォント", auto: "アプリのテーマ", paper: "紙", sepia: "セピア", mist: "霧", slate: "スレート", night: "夜", custom: "カスタム",
     background: "背景色", text: "文字色", serif: "明朝", sans: "ゴシック", rounded: "丸ゴシック", mono: "等幅", customFont: "インストール済みフォント", customFontPlaceholder: "フォント名（例：Pretendard）",
     customFontHint: "このコンピュータにインストールされているフォント名を入力してください。見つからない場合は明朝で表示されます。" },
-  zh: { title: "编辑器", theme: "背景", font: "字体", auto: "跟随应用", paper: "纸张", sepia: "复古", mist: "雾", slate: "石板", night: "夜间", custom: "自定义",
+  zh: { title: "配色与正文字体", theme: "应用整体配色", font: "字体", auto: "跟随应用", paper: "纸张", sepia: "复古", mist: "雾", slate: "石板", night: "夜间", custom: "自定义",
     background: "背景色", text: "文字颜色", serif: "宋体", sans: "黑体", rounded: "圆体", mono: "等宽", customFont: "已安装字体", customFontPlaceholder: "字体名称（例如 Pretendard）",
     customFontHint: "输入此电脑上已安装的字体名称。找不到时将使用宋体显示。" },
 };

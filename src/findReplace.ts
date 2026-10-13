@@ -18,6 +18,16 @@ export function replaceMatches(text: string, matches: TextMatch[], replacement: 
   return parts.join("");
 }
 
+export function replaceCurrentMatch(text: string, query: string, replacement: string, matchCase: boolean, index: number) {
+  const matches = findText(text, query, matchCase);
+  const match = matches[index];
+  if (!match) return { content: text, index: 0 };
+  const content = replaceMatches(text, [match], replacement);
+  // Continue after the inserted text, even when it contains the search term.
+  const next = findText(content, query, matchCase).findIndex(item => item.start >= match.start + replacement.length);
+  return { content, index: Math.max(0, next) };
+}
+
 export function normalizeNumber(raw: string, current: number, min: number, max: number, step: number): number {
   if (!raw.trim()) return current;
   const value = Number(raw);

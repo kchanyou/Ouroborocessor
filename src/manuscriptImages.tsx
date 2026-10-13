@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { WidgetType } from "@codemirror/view";
+import { sourceOffsetForEditor } from "./editorOffsets";
 
 export function parseImages(content: string) {
   return Array.from(content.matchAll(/!\[([^\]\n]*)\]\(images\/(image-[a-zA-Z0-9-]+\.(?:png|jpg|gif|webp))\)/g), match => ({
@@ -32,6 +33,29 @@ export function updateImageAlt(content: string, from: number, to: number, alt: s
 export function removeImage(content: string, from: number, to: number) {
   if (!parseImages(content).some((item) => item.start === from && item.end === to)) return null;
   return content.slice(0, from) + content.slice(to);
+}
+
+// Inspector actions receive positions from the normalized editor, not the stored source.
+function sourceImageRange(content: string, from: number, to: number) {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to <= from
+    || to > content.replace(/\r\n?/g, "\n").length) return null;
+  return { from: sourceOffsetForEditor(content, from), to: sourceOffsetForEditor(content, to) };
+}
+
+export function updateImageAltFromEditor(content: string, from: number, to: number, alt: string) {
+  const range = sourceImageRange(content, from, to);
+  if (!range) return null;
+  const result = updateImageAlt(content, range.from, range.to, alt);
+  if (!result) return null;
+  return { ...result, image: { ...result.image,
+    start: result.content.slice(0, result.image.start).replace(/\r\n?/g, "\n").length,
+    end: result.content.slice(0, result.image.end).replace(/\r\n?/g, "\n").length,
+  } };
+}
+
+export function removeImageFromEditor(content: string, from: number, to: number) {
+  const range = sourceImageRange(content, from, to);
+  return range ? removeImage(content, range.from, range.to) : null;
 }
 export async function imageUrl(projectPath: string, name: string) {
   const bytes = await invoke<number[]>("read_image", { projectPath, name });

@@ -3,24 +3,32 @@ import type { Locale } from "./i18n";
 import { translate } from "./i18n";
 import { featureText } from "./featureText";
 import { recentProjects } from "./workspaceSession";
+import { localizedError } from "./appText";
 
-export function RecentProjectsDialog({ locale, onOpen, onLocate, onClose }: {
-  locale: Locale; onOpen: (path: string) => Promise<void>; onLocate: (oldPath?: string) => Promise<boolean>; onClose: () => void;
+export function RecentProjectsDialog({ locale, persist, onOpen, onLocate, onClose }: {
+  locale: Locale; persist: () => Promise<void>; onOpen: (path: string) => Promise<void>; onLocate: (oldPath?: string) => Promise<boolean>; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const locked = useRef(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
   const t = featureText[locale];
   const [projects] = useState(recentProjects);
   useEffect(() => { dialog.current?.showModal(); }, []);
   async function run(path?: string, locate = false) {
     if (locked.current) return;
-    locked.current = true; setBusy(true); setFailed(null);
+    locked.current = true; setBusy(true); setFailed(null); setSaveError("");
+    let saved = false;
     try {
+      await persist();
+      saved = true;
       if (locate) { if (await onLocate(path)) onClose(); }
       else if (path) { await onOpen(path); onClose(); }
-    } catch { setFailed(path ?? ""); }
+    } catch (reason) {
+      if (saved) setFailed(path ?? "");
+      else setSaveError(localizedError(reason, locale));
+    }
     finally { locked.current = false; setBusy(false); }
   }
   return <dialog ref={dialog} className="new-project-dialog export-dialog" aria-labelledby="recent-project-title" onCancel={event => { if (locked.current) event.preventDefault(); else onClose(); }}>
@@ -31,6 +39,7 @@ export function RecentProjectsDialog({ locale, onOpen, onLocate, onClose }: {
           <strong>{item.title}</strong><small>{item.path}</small>
         </button></li>)}
       </ul> : <p>{t.noRecent}</p>}
+      {saveError && <p role="alert">{saveError}</p>}
       {failed !== null && <div className="recent-error" role="alert"><p>{t.missingProject}</p>
         <button type="button" disabled={busy} onClick={() => void run(failed || undefined, true)}>{t.reconnect}</button></div>}
       <div className="dialog-actions">

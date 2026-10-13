@@ -66,3 +66,10 @@ it("tolerates blocked optional storage", () => {
   expect(readSession(project)).toBeNull();
   expect(recentProjects()).toEqual([]);
 });
+
+it("restores the chosen split direction and proportion with each project", () => {
+  const customized = { ...session, layout: { ...defaultLayout, splitDirection: "up" as const, splitRatio: 0.62 } };
+  saveSession(project.projectPath, customized);
+  expect(readSession(project)?.layout).toMatchObject({ splitDirection: "up", splitRatio: 0.62 });
+  expect(readSession({ ...project, projectPath: "/other.story" })).toBeNull();
+});

@@ -6,6 +6,7 @@ import { importScenes, readImportFiles, type ImportSource } from "./importManusc
 import { listManuscriptTrash, type ManuscriptTrashItem, type SceneOperation } from "./tauriApi";
 import type { ManuscriptNode, ProjectSnapshot } from "./types";
 import { getCharacterCount } from "./textMetrics";
+import { sourceOffsetForEditor } from "./editorOffsets";
 
 export type SceneTool = "import" | "split" | "merge" | "trash" | "restore";
 export function SceneToolsDialog({ mode, project, selected, nextScene, offset, locale, onApply, onClose }: {
@@ -18,6 +19,7 @@ export function SceneToolsDialog({ mode, project, selected, nextScene, offset, l
   const [sources, setSources] = useState<ImportSource[]>([]), [split, setSplit] = useState(false);
   const [title, setTitle] = useState(selected?.title ?? "");
   const [trash, setTrash] = useState<ManuscriptTrashItem[]>([]);
+  const splitOffset = useMemo(() => sourceOffsetForEditor(selected?.content ?? "", offset), [selected?.content, offset]);
   const label = { import: t.importManuscript, split: t.splitScene, merge: t.mergeNext, trash: t.moveTrash, restore: t.manuscriptTrash }[mode];
   const preview = useMemo(() => { try { return { scenes: importScenes(sources, split), error: "" }; } catch { return { scenes: [], error: t.invalidImport }; } }, [sources, split, t]);
   useEffect(() => { dialog.current?.showModal(); }, []);
@@ -39,11 +41,11 @@ export function SceneToolsDialog({ mode, project, selected, nextScene, offset, l
   }
   function commit() {
     if (mode === "import") void apply({ type: "import", parent: selected?.kind === "group" ? selected.id : selected?.parentId ?? null, scenes: preview.scenes });
-    if (mode === "split" && selected) void apply({ type: "split", id: selected.id, offset, title });
+    if (mode === "split" && selected) void apply({ type: "split", id: selected.id, offset: splitOffset, title });
     if (mode === "merge" && selected && nextScene) void apply({ type: "merge", id: selected.id, next: nextScene.id });
     if (mode === "trash" && selected) void apply({ type: "trash", id: selected.id });
   }
-  const invalid = mode === "import" ? !preview.scenes.length || !!preview.error : mode === "split" ? !title.trim() || offset <= 0 || offset >= (selected?.content.length ?? 0) : mode === "merge" ? !nextScene : !selected;
+  const invalid = mode === "import" ? !preview.scenes.length || !!preview.error : mode === "split" ? !title.trim() || splitOffset <= 0 || splitOffset >= (selected?.content.length ?? 0) : mode === "merge" ? !nextScene : !selected;
   return <dialog ref={dialog} className="new-project-dialog export-dialog" aria-labelledby="scene-tools-title" onCancel={event => { if (locked.current) event.preventDefault(); else onClose(); }}>
     <div className="new-project-panel">
       <h2 id="scene-tools-title">{label}</h2>
